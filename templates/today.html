@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}Today - {{ employee.name }}{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <div>
+    <h1>Good <em>{{ 'morning' if current_time < '12:00' else ('afternoon' if current_time < '17:00' else 'evening') }}</em>, {{ employee.name.split()[0] }}</h1>
+    <div style="font-size: 14px; color: var(--text-light);">{{ today }} &middot; {{ current_time }}</div>
+  </div>
+  <div style="display: flex; gap: 8px;">
+    <a href="/dashboard" class="btn btn-primary btn-sm">Full Task Manager</a>
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('pwModal').classList.add('active')">Change Password</button>
+  </div>
+</div>
+
+<!-- Celebration Banner -->
+{% if celebrations %}
+<div class="card celebration-card">
+  {% for c in celebrations %}
+  <div class="celebration-content">
+    {% if c.type == 'birthday' %}
+      <div class="celebration-mark">Birthday</div>
+      <h2>Happy Birthday</h2>
+      <p style="font-size: 15px;">Wishing you a wonderful {{ c.years }}{{ 'st' if c.years == 1 else ('nd' if c.years == 2 else ('rd' if c.years == 3 else 'th')) }} birthday, {{ employee.name }}!</p>
+    {% elif c.type == 'work_anniversary' %}
+      <div class="celebration-mark">Anniversary</div>
+      <h2>Happy Work Anniversary</h2>
+      <p style="font-size: 15px;">Congratulations on {{ c.years }} year{{ 's' if c.years > 1 }} with us, {{ employee.name }}!</p>
+    {% elif c.type == 'wedding_anniversary' %}
+      <div class="celebration-mark">Milestone</div>
+      <h2>Happy Wedding Anniversary</h2>
+      <p style="font-size: 15px;">Wishing you a wonderful {{ c.years }}{{ 'st' if c.years == 1 else ('nd' if c.years == 2 else ('rd' if c.years == 3 else 'th')) }} wedding anniversary, {{ employee.name }}!</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ total_done }}</div>
+    <div class="stat-label">Tasks Done Today</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ recurring_total - recurring_done }}</div>
+    <div class="stat-label">Recurring Remaining</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ pending_oneoff|length }}</div>
+    <div class="stat-label">Open Tasks</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ time_logged }}<span style="font-size: 14px;">m</span></div>
+    <div class="stat-label">Time Logged</div>
+  </div>
+</div>
+
+<!-- Attendance -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="flex-between">
+    <div>
+      <h2 style="margin-bottom: 4px;">Attendance</h2>
+      {% if is_checked_in %}
+        <span class="badge badge-done" style="font-size: 13px; padding: 4px 12px;">Checked In</span>
+      {% else %}
+        <span class="badge badge-pending" style="font-size: 13px; padding: 4px 12px;">Not Checked In</span>
+      {% endif %}
+    </div>
+    <div style="display: flex; gap: 8px;">
+      {% if not is_checked_in %}
+        <form method="POST" action="/checkin" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+          <button type="submit" class="btn btn-success">Check In</button>
+        </form>
+      {% else %}
+        <form method="POST" action="/checkout" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+          <button type="submit" class="btn btn-danger">Check Out</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+  {% if today_attendance %}
+  <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      {% for a in today_attendance %}
+        <span style="font-size: 13px; padding: 3px 10px; border-radius: 4px;
+          {% if a.action == 'checkin' %}background: var(--sage-soft); color: oklch(32% 0.14 160);{% else %}background: var(--rose-soft); color: oklch(38% 0.18 25);{% endif %}">
+          {{ 'IN' if a.action == 'checkin' else 'OUT' }} {{ a.action_time }}
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Today's Tasks -->
+<div class="grid-2">
+  <!-- Recurring Tasks for Today -->
+  <div class="card">
+    <div class="flex-between" style="margin-bottom: 12px;">
+      <h2>Recurring Tasks</h2>
+      <span class="badge badge-recurring">{{ recurring_done }}/{{ recurring_total }} done</span>
+    </div>
+
+    {% for task in recurring %}
+    <div class="task-item {% if task.id in today_completions %}done{% endif %}">
+      {% if task.id in today_completions %}
+        <form method="POST" action="/recurring/{{ task.id }}/uncomplete" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+          <input type="hidden" name="completion_date" value="{{ today }}">
+          <button type="submit" class="check-circle checked" title="Mark incomplete">&#10003;</button>
+        </form>
+        <div style="flex: 1;">
+          <div class="task-title" style="text-decoration: line-through;">{{ task.title }}</div>
+          {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+          {% if task.drive_link %}<div style="font-size: 12px; margin-top: 2px;"><a href="{{ task.drive_link }}" target="_blank" style="color: var(--primary);">Drive Link</a></div>{% endif %}
+          <div style="font-size: 12px; color: var(--success); margin-top: 4px;">
+            Done &mdash; {{ today_completions[task.id].time_minutes }} min
+            {% if today_completions[task.id].notes %}&mdash; {{ today_completions[task.id].notes }}{% endif %}
+          </div>
+          {% set comments = task_comments.get(('recurring', task.id), []) %}
+          {% if comments %}
+          <div style="margin-top: 6px; font-size: 12px;">
+            {% for comment in comments %}
+            <div style="padding: 4px 0; border-top: 1px solid var(--border);"><strong>{{ comment.author }}</strong> <span style="color: var(--text-light);">{{ comment.created_at }}</span>: {{ comment.text }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <form method="POST" action="/task/recurring/{{ task.id }}/comment" style="margin-top: 6px; display: flex; gap: 4px;">
+            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+            <input type="text" name="comment" placeholder="Add comment..." style="flex: 1; padding: 4px 8px; font-size: 12px;">
+            <button type="submit" class="btn btn-sm btn-outline">Post</button>
+          </form>
+        </div>
+      {% else %}
+        <div class="check-circle" onclick="openRecurringModal({{ task.id }}, '{{ task.title|e }}', {{ task.project_id or 0 }})"></div>
+        <div style="flex: 1;">
+          <div class="task-title">{{ task.title }}
+            {% if task.frequency and task.frequency != 'daily' %}
+              <span style="font-size: 11px; color: var(--text-light); font-weight: 400; margin-left: 4px;">({{ task.frequency }})</span>
+            {% endif %}
+          </div>
+          {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+          {% if task.drive_link %}<div style="font-size: 12px; margin-top: 2px;"><a href="{{ task.drive_link }}" target="_blank" style="color: var(--primary);">Drive Link</a></div>{% endif %}
+          {% set comments = task_comments.get(('recurring', task.id), []) %}
+          {% if comments %}
+          <div style="margin-top: 6px; font-size: 12px;">
+            {% for comment in comments %}
+            <div style="padding: 4px 0; border-top: 1px solid var(--border);"><strong>{{ comment.author }}</strong> <span style="color: var(--text-light);">{{ comment.created_at }}</span>: {{ comment.text }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <form method="POST" action="/task/recurring/{{ task.id }}/comment" style="margin-top: 6px; display: flex; gap: 4px;">
+            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+            <input type="text" name="comment" placeholder="Add comment..." style="flex: 1; padding: 4px 8px; font-size: 12px;">
+            <button type="submit" class="btn btn-sm btn-outline">Post</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {% if not recurring %}
+    <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 14px;">
+      No recurring tasks. <a href="/dashboard">Add some in Task Manager</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Open Tasks -->
+  <div class="card">
+    <div class="flex-between" style="margin-bottom: 12px;">
+      <h2>Open Tasks</h2>
+      <span class="badge badge-oneoff">{{ pending_oneoff|length }} pending</span>
+    </div>
+
+    {% for task in pending_oneoff %}
+    <div class="task-item">
+      <div class="check-circle" onclick="openOneoffModal({{ task.id }}, '{{ task.title|e }}', {{ task.project_id or 0 }})"></div>
+      <div style="flex: 1;">
+        <div class="task-title">{{ task.title }}</div>
+        {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+        {% if task.drive_link %}<div style="font-size: 12px; margin-top: 2px;"><a href="{{ task.drive_link }}" target="_blank" style="color: var(--primary);">Drive Link</a></div>{% endif %}
+        <div style="font-size: 11px; color: var(--text-light); margin-top: 2px;">Created {{ task.created_at[:10] }}</div>
+        {% set comments = task_comments.get(('oneoff', task.id), []) %}
+          {% if comments %}
+        <div style="margin-top: 6px; font-size: 12px;">
+          {% for comment in comments %}
+          <div style="padding: 4px 0; border-top: 1px solid var(--border);"><strong>{{ comment.author }}</strong> <span style="color: var(--text-light);">{{ comment.created_at }}</span>: {{ comment.text }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <form method="POST" action="/task/oneoff/{{ task.id }}/comment" style="margin-top: 6px; display: flex; gap: 4px;">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+          <input type="text" name="comment" placeholder="Add comment..." style="flex: 1; padding: 4px 8px; font-size: 12px;">
+          <button type="submit" class="btn btn-sm btn-outline">Post</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if completed_today %}
+    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+      <h3 style="color: var(--success);">Completed Today</h3>
+      {% for task in completed_today %}
+      <div class="task-item done">
+        <div class="check-circle checked">&#10003;</div>
+        <div style="flex: 1;">
+          <div class="task-title" style="text-decoration: line-through;">{{ task.title }}</div>
+          <div style="font-size: 12px; color: var(--success); margin-top: 2px;">
+            {{ task.time_minutes }} min {% if task.notes %}&mdash; {{ task.notes }}{% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not pending_oneoff and not completed_today %}
+    <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 14px;">
+      No one-time tasks. <a href="/dashboard">Add some in Task Manager</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Recurring completion modal -->
+<div class="modal-overlay" id="recurringModal">
+  <div class="modal">
+    <h3>Complete Task</h3>
+    <p id="recurringTaskName" style="font-size: 14px; color: var(--text-light); margin-bottom: 12px;"></p>
+    <form id="recurringForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="completion_date" value="{{ today }}" required>
+      </div>
+      <div class="form-group">
+        <label>Time Taken (minutes)</label>
+        <input type="number" name="time_minutes" min="0" step="1" placeholder="e.g. 30" required>
+      </div>
+      <div class="form-group">
+        <label>Project</label>
+        <select name="project_id" id="recurringProjectSelect" required>
+          <option value="">Select project</option>
+          {% for p in active_projects %}
+          <option value="{{ p.id }}">{{ p.name }}{% if p.client_name %} ({{ p.client_name }}){% endif %}</option>
+          {% endfor %}
+        </select>
+        <div class="field-hint">Required for clean performance and client reports.</div>
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea name="notes" rows="2" placeholder="Any notes..."></textarea>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('recurringModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Complete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- One-time completion modal -->
+<div class="modal-overlay" id="oneoffModal">
+  <div class="modal">
+    <h3>Complete Task</h3>
+    <p id="oneoffTaskName" style="font-size: 14px; color: var(--text-light); margin-bottom: 12px;"></p>
+    <form id="oneoffForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group">
+        <label>Completion Date</label>
+        <input type="date" name="completion_date" value="{{ today }}" required>
+      </div>
+      <div class="form-group">
+        <label>Time Taken (minutes)</label>
+        <input type="number" name="time_minutes" min="0" step="1" placeholder="e.g. 45" required>
+      </div>
+      <div class="form-group">
+        <label>Project</label>
+        <select name="project_id" id="oneoffProjectSelect" required>
+          <option value="">Select project</option>
+          {% for p in active_projects %}
+          <option value="{{ p.id }}">{{ p.name }}{% if p.client_name %} ({{ p.client_name }}){% endif %}</option>
+          {% endfor %}
+        </select>
+        <div class="field-hint">Required for clean performance and client reports.</div>
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea name="notes" rows="2" placeholder="Any notes..."></textarea>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('oneoffModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Complete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Change password modal -->
+<div class="modal-overlay" id="pwModal">
+  <div class="modal">
+    <h3>Change Password</h3>
+    <form method="POST" action="/change-password">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" name="new_password" placeholder="Min 4 characters" required minlength="4">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('pwModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setProjectSelect(id, projectId) {
+  var select = document.getElementById(id);
+  if (!select) return;
+  select.value = projectId && projectId > 0 ? String(projectId) : '';
+}
+function openRecurringModal(taskId, title, projectId) {
+  document.getElementById('recurringTaskName').textContent = title;
+  document.getElementById('recurringForm').action = '/recurring/' + taskId + '/complete';
+  setProjectSelect('recurringProjectSelect', projectId);
+  document.getElementById('recurringModal').classList.add('active');
+}
+function openOneoffModal(taskId, title, projectId) {
+  document.getElementById('oneoffTaskName').textContent = title;
+  document.getElementById('oneoffForm').action = '/oneoff/' + taskId + '/complete';
+  setProjectSelect('oneoffProjectSelect', projectId);
+  document.getElementById('oneoffModal').classList.add('active');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) {
+    if (e.target === el) el.classList.remove('active');
+  });
+});
+</script>
+{% endblock %}

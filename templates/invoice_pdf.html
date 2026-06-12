@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Invoice {{ invoice.invoice_number }}</title>
+<style>
+  @media print {
+    body { margin: 0; }
+    .no-print { display: none !important; }
+  }
+  body { font-family: 'Segoe UI', Roboto, Arial, sans-serif; color: #1e293b; line-height: 1.5; max-width: 800px; margin: 0 auto; padding: 40px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #3b6bd4; }
+  .header h1 { font-size: 28px; color: #3b6bd4; margin: 0; }
+  .header .company { text-align: right; }
+  .company-logo { max-height: 60px; max-width: 200px; margin-bottom: 8px; }
+  .meta { display: flex; justify-content: space-between; margin-bottom: 30px; }
+  .meta-block h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0; color: #64748b; margin-bottom: 6px; }
+  .meta-block p { margin: 2px 0; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  thead th { background: #f1f5f9; padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+  .totals { text-align: right; margin-top: 10px; }
+  .totals .line { display: flex; justify-content: flex-end; gap: 24px; margin-bottom: 4px; font-size: 14px; }
+  .totals .line span:first-child { color: #64748b; }
+  .totals .grand { font-size: 22px; font-weight: 700; color: #3b6bd4; margin-top: 8px; padding-top: 8px; border-top: 2px solid #3b6bd4; }
+  .remarks { margin-top: 30px; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+  .remarks h3 { font-size: 13px; color: #64748b; margin-bottom: 6px; }
+  .remarks p { font-size: 14px; white-space: pre-wrap; margin: 0; }
+  .print-btn { position: fixed; top: 20px; right: 20px; background: #3b6bd4; color: #fff; border: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+  .print-btn:hover { background: #2c5cb5; }
+  .status-badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .status-paid { background: #dcfce7; color: #166534; }
+  .status-sent { background: #dbeafe; color: #1e40af; }
+  .status-draft { background: #f1f5f9; color: #64748b; }
+</style>
+</head>
+<body>
+<button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
+
+<div class="header">
+  <div>
+    <h1>INVOICE</h1>
+    <p style="font-size: 16px; font-weight: 600; margin-top: 4px;">{{ invoice.invoice_number }}</p>
+    {% if invoice.status == 'paid' %}
+      <span class="status-badge status-paid">PAID</span>
+    {% elif invoice.status == 'sent' %}
+      <span class="status-badge status-sent">SENT</span>
+    {% else %}
+      <span class="status-badge status-draft">DRAFT</span>
+    {% endif %}
+  </div>
+  <div class="company">
+    {% if company.logo_url %}
+      <img src="{{ company.logo_url }}" alt="{{ company.name }}" class="company-logo"><br>
+    {% endif %}
+    <p style="font-weight: 600; font-size: 16px;">{{ company.name or 'Your Company' }}</p>
+    {% if company.address %}<p style="font-size: 13px; color: #64748b;">{{ company.address }}</p>{% endif %}
+    {% if company.email %}<p style="font-size: 13px; color: #64748b;">{{ company.email }}</p>{% endif %}
+    {% if company.phone %}<p style="font-size: 13px; color: #64748b;">{{ company.phone }}</p>{% endif %}
+    <p style="font-size: 13px; color: #64748b; margin-top: 8px;">Date: {{ invoice.invoice_date }}</p>
+    {% if invoice.due_date %}<p style="font-size: 13px; color: #64748b;">Due: {{ invoice.due_date }}</p>{% endif %}
+  </div>
+</div>
+
+<div class="meta">
+  <div class="meta-block">
+    <h3>Bill To</h3>
+    <p style="font-weight: 600; font-size: 16px;">{{ invoice.client_name }}</p>
+    {% if invoice.contact_person %}<p>{{ invoice.contact_person }}</p>{% endif %}
+    {% if invoice.email %}<p>{{ invoice.email }}</p>{% endif %}
+    {% if invoice.phone %}<p>{{ invoice.phone }}</p>{% endif %}
+    {% if invoice.address %}<p style="color: #64748b;">{{ invoice.address }}</p>{% endif %}
+  </div>
+  <div class="meta-block" style="text-align: right;">
+    <h3>Invoice Details</h3>
+    <p>Invoice #: {{ invoice.invoice_number }}</p>
+    <p>Date: {{ invoice.invoice_date }}</p>
+    {% if invoice.due_date %}<p>Due: {{ invoice.due_date }}</p>{% endif %}
+    <p>Currency: {{ invoice.currency or 'INR' }}</p>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th style="text-align: right;">Total</th></tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td>{{ item.description }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>{{ currency_sym }}{{ '%.2f'|format(item.unit_price) }}</td>
+      <td style="text-align: right; font-weight: 600;">{{ currency_sym }}{{ '%.2f'|format(item.total) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="totals">
+  <div class="line"><span>Subtotal:</span><strong>{{ currency_sym }}{{ '%.2f'|format(invoice.subtotal) }}</strong></div>
+  {% if invoice.discount_percent > 0 %}
+  <div class="line"><span>Discount ({{ invoice.discount_percent }}%):</span><span>-{{ currency_sym }}{{ '%.2f'|format(invoice.discount_amount) }}</span></div>
+  {% endif %}
+  <div class="grand">{{ currency_sym }}{{ '%.2f'|format(invoice.total) }} {{ invoice.currency or 'INR' }}</div>
+</div>
+
+{% if invoice.remarks %}
+<div class="remarks">
+  <h3>Remarks</h3>
+  <p>{{ invoice.remarks }}</p>
+</div>
+{% endif %}
+
+<div style="margin-top: 60px; text-align: center; color: #94a3b8; font-size: 12px;">
+  Thank you for your business!
+</div>
+</body>
+</html>

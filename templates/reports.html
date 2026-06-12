@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Project Reports{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Project Reports</h1>
+  <div style="display:flex; gap:8px;">
+    <a href="/reports/schedules" class="btn btn-sm btn-outline">Scheduled Reports</a>
+    <a href="/tasks/unassigned" class="btn btn-sm btn-outline">Unlinked Tasks</a>
+  </div>
+</div>
+
+<!-- Filter form -->
+<div class="card">
+  <form method="GET" action="/reports" id="filterForm">
+    <div class="form-row" style="margin-bottom:12px;">
+      <div class="form-group grow">
+        <label>Client (all projects)</label>
+        <select name="client_id" onchange="if(this.value){document.querySelector('[name=project_id]').value='0';}this.form.submit()">
+          <option value="0">-- All Clients --</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}" {% if c.id==client_id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group grow">
+        <label>Project</label>
+        <select name="project_id" onchange="if(this.value!='0'){document.querySelector('[name=client_id]').value='0';}this.form.submit()">
+          <option value="0">-- Select a project --</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" {% if p.id==project_id %}selected{% endif %}>
+            {{ p.name }}{% if p.client_name %} — {{ p.client_name }}{% endif %}{% if p.status!='active' %} [{{ p.status }}]{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="min-width:160px;">
+        <label>Date Range</label>
+        <select name="range" onchange="onRangeChange(this)">
+          <option value="this_week"  {% if range_key=='this_week'  %}selected{% endif %}>This Week</option>
+          <option value="last_week"  {% if range_key=='last_week'  %}selected{% endif %}>Last Week</option>
+          <option value="this_month" {% if range_key=='this_month' %}selected{% endif %}>This Month</option>
+          <option value="last_month" {% if range_key=='last_month' %}selected{% endif %}>Last Month</option>
+          <option value="last_30"    {% if range_key=='last_30'    %}selected{% endif %}>Last 30 Days</option>
+          <option value="custom"     {% if range_key=='custom'     %}selected{% endif %}>Custom</option>
+        </select>
+      </div>
+      <div class="form-group" id="customRange" style="display:{% if range_key=='custom' %}flex{% else %}none{% endif %}; gap:6px;">
+        <div>
+          <label style="font-size:12px;">From</label>
+          <input type="date" name="date_from" value="{{ date_from }}">
+        </div>
+        <div>
+          <label style="font-size:12px;">To</label>
+          <input type="date" name="date_to" value="{{ date_to }}">
+        </div>
+      </div>
+      <div class="form-group" style="align-self:flex-end;">
+        <button type="submit" class="btn btn-primary">Load Report</button>
+      </div>
+    </div>
+    {% if report %}
+    <div style="font-size:13px; color:var(--text-light);">
+      Period: <b>{{ date_from }}</b> → <b>{{ date_to }}</b>
+    </div>
+    {% endif %}
+  </form>
+</div>
+
+{% if report %}
+<!-- KPI cards -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ report.total_hours }}</div>
+    <div class="stat-label">Total Hours Logged</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ report.task_count }}</div>
+    <div class="stat-label">Completions</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ report.contributors }}</div>
+    <div class="stat-label">Contributors</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ report.currency_sym }}{{ '%.2f'|format(report.total_cost) }}</div>
+    <div class="stat-label">Total Effort Cost</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Hours per employee -->
+  <div class="card">
+    <h2>Hours per Contributor</h2>
+    <canvas id="empChart" height="180"></canvas>
+    <table style="margin-top:12px;">
+      <thead><tr><th>Employee</th><th style="text-align:right;">Hours</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Cost</th></tr></thead>
+      <tbody>
+      {% for e in report.employees %}
+        <tr>
+          <td>{{ e.name }} <span style="color:var(--text-light); font-size:11px;">({{ e.task_count }})</span></td>
+          <td style="text-align:right;">{{ '%.2f'|format(e.minutes/60) }}</td>
+          <td style="text-align:right;">{% if e.hourly_rate %}{{ report.currency_sym }}{{ '%.2f'|format(e.hourly_rate) }}{% else %}<span style="color:var(--text-light);">—</span>{% endif %}</td>
+          <td style="text-align:right;">{{ report.currency_sym }}{{ '%.2f'|format(e.cost) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Hours per day -->
+  <div class="card">
+    <h2>Effort Over Time</h2>
+    <canvas id="dayChart" height="180"></canvas>
+    <h3 style="margin-top:16px;">Top Tasks by Time</h3>
+    <table>
+      <thead><tr><th>Task</th><th>Type</th><th style="text-align:right;">Hours</th><th style="text-align:right;">Times</th></tr></thead>
+      <tbody>
+      {% for t in report.tasks[:12] %}
+        <tr>
+          <td>{{ t.title }}</td>
+          <td><span class="badge badge-{{ 'recurring' if t.ttype=='recurring' else 'oneoff' }}">{{ t.ttype }}</span></td>
+          <td style="text-align:right;">{{ '%.2f'|format(t.minutes/60) }}</td>
+          <td style="text-align:right;">{{ t.count }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Detail log -->
+<div class="card">
+  <div class="flex-between" style="margin-bottom:12px;">
+    <h2>Work Log</h2>
+    <span class="badge badge-recurring">{{ report.entries|length }} entries</span>
+  </div>
+  {% if report.entries %}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Employee</th><th>Task</th><th>Type</th>
+        <th style="text-align:right;">Minutes</th><th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in report.entries %}
+      <tr>
+        <td style="white-space:nowrap;">{{ e.date }}</td>
+        <td>{{ e.emp_name }}</td>
+        <td>
+          <div style="font-weight:600;">{{ e.task_title }}</div>
+          {% if e.task_desc %}<div style="font-size:12px;color:var(--text-light);">{{ e.task_desc }}</div>{% endif %}
+        </td>
+        <td><span class="badge badge-{{ 'recurring' if e.ttype=='recurring' else 'oneoff' }}">{{ e.ttype }}</span></td>
+        <td style="text-align:right;">{{ '%.0f'|format(e.minutes) }}</td>
+        <td style="font-size:12px; max-width:280px;">{{ e.notes }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="text-align:center; color:var(--text-light); padding:20px;">No work logged in this period.</p>
+  {% endif %}
+</div>
+
+<!-- Send report -->
+<div class="card">
+  <h2>Send / Export Report</h2>
+  <form method="POST" action="/reports/send" style="margin-top:12px;">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <input type="hidden" name="project_id" value="{{ project_id }}">
+    <input type="hidden" name="date_from" value="{{ date_from }}">
+    <input type="hidden" name="date_to" value="{{ date_to }}">
+
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>Subject</label>
+      <input type="text" name="subject" value="{{ default_subject }}" required>
+    </div>
+    <div class="form-row" style="margin-bottom:10px;">
+      <div class="form-group grow">
+        <label>To (comma-separated)</label>
+        <input type="text" name="to_emails" value="{{ default_to }}" placeholder="client@example.com, manager@example.com" required>
+      </div>
+      <div class="form-group grow">
+        <label>CC (optional)</label>
+        <input type="text" name="cc_emails" placeholder="cc@example.com">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>Executive Summary (editable, shown at top of report)</label>
+      <textarea name="summary" rows="4" placeholder="Brief highlights to show at the top of the emailed report...">{% if report.entries %}This report covers {{ report.entries|length }} work entries across {{ report.contributors }} contributor(s) totaling {{ report.total_hours }} hours for {{ report.project.name }}.{% endif %}</textarea>
+    </div>
+    <div class="form-row" style="gap:16px; align-items:center;">
+      <label style="font-size:13px; display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" name="include_branding" checked style="width:auto;"> Include company branding
+      </label>
+      <label style="font-size:13px; display:flex; align-items:center; gap:6px;">
+        <input type="checkbox" name="attach_pdf" checked style="width:auto;"> Attach PDF
+      </label>
+      <div style="flex:1;"></div>
+      <a href="/reports/pdf?project_id={{ project_id }}&date_from={{ date_from }}&date_to={{ date_to }}&branding=1" class="btn btn-outline" target="_blank">Preview PDF</a>
+      <button type="submit" class="btn btn-success">Send Now</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <p style="text-align:center; color:var(--text-light); padding:24px;">
+    Pick a project and date range above to load the report.
+  </p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onRangeChange(sel) {
+  document.getElementById('customRange').style.display = (sel.value === 'custom') ? 'flex' : 'none';
+  if (sel.value !== 'custom') sel.form.submit();
+}
+</script>
+{% if report %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+  const empLabels = {{ report.employees | map(attribute='name') | list | tojson }};
+  const empHours = {{ report.employees | map(attribute='minutes') | list | tojson }}.map(m => +(m/60).toFixed(2));
+  new Chart(document.getElementById('empChart'), {
+    type: 'bar',
+    data: {
+      labels: empLabels,
+      datasets: [
+        { label: 'Hours', data: empHours, backgroundColor: 'rgba(37,99,235,0.7)' }
+      ]
+    },
+    options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+  });
+
+  const dayLabels = {{ report.days | map(attribute=0) | list | tojson }};
+  const dayHours = {{ report.days | map(attribute=1) | list | tojson }}.map(m => +(m/60).toFixed(2));
+  new Chart(document.getElementById('dayChart'), {
+    type: 'line',
+    data: { labels: dayLabels, datasets: [{ label:'Hours', data: dayHours, borderColor:'#3b6bd4', backgroundColor:'rgba(59,107,212,0.18)', fill:true, tension:0.2 }] },
+    options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

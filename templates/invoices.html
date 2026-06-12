@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Invoices - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Invoices</h1>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <form method="GET" action="/invoices" class="form-row" style="gap: 8px;">
+      <select name="client" onchange="this.form.submit()" style="width: auto;">
+        <option value="0">All Clients</option>
+        {% for c in clients %}
+        <option value="{{ c.id }}" {% if client_filter == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="status" onchange="this.form.submit()" style="width: auto;">
+        <option value="">All Status</option>
+        <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Draft</option>
+        <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Sent</option>
+        <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Paid</option>
+      </select>
+    </form>
+    {% if has_perm('import_invoices') %}
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('invoiceImportModal').classList.add('active')">Import Excel</button>
+    <a href="/admin/invoice-template" class="btn btn-sm btn-outline">Template</a>
+    {% endif %}
+    {% if has_perm('create_invoice') %}
+    <a href="/invoices/new" class="btn btn-purple">+ New Invoice</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ invoices|length }}</div>
+    <div class="stat-label">Invoices in View</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ invoices|selectattr('status', 'equalto', 'draft')|list|length }}</div>
+    <div class="stat-label">Draft</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ invoices|selectattr('status', 'equalto', 'sent')|list|length }}</div>
+    <div class="stat-label">Sent</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ invoices|selectattr('status', 'equalto', 'paid')|list|length }}</div>
+    <div class="stat-label">Paid</div>
+  </div>
+</div>
+
+<!-- Monthly Summary -->
+{% if monthly_summary %}
+<div class="card" style="margin-bottom: 20px;">
+  <h2 style="margin-bottom: 12px;">Monthly Summary</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th>Invoices</th>
+        <th>Paid (INR)</th>
+        <th>Paid (USD)</th>
+        <th>Pending (INR)</th>
+        <th>Pending (USD)</th>
+        <th>Total Inflow (INR equiv.)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for month_key, s in monthly_summary|dictsort(reverse=true) %}
+      <tr>
+        <td style="font-weight: 600;">{{ month_key }}</td>
+        <td>{{ s.count }}</td>
+        <td style="color: var(--success);">{% if s.paid_inr %}₹{{ '{:,.2f}'.format(s.paid_inr) }}{% else %}&mdash;{% endif %}</td>
+        <td style="color: var(--success);">{% if s.paid_usd %}${{ '{:,.2f}'.format(s.paid_usd) }}{% else %}&mdash;{% endif %}</td>
+        <td style="color: var(--danger);">{% if s.pending_inr %}₹{{ '{:,.2f}'.format(s.pending_inr) }}{% else %}&mdash;{% endif %}</td>
+        <td style="color: var(--danger);">{% if s.pending_usd %}${{ '{:,.2f}'.format(s.pending_usd) }}{% else %}&mdash;{% endif %}</td>
+        <td style="font-weight: 600;">
+          ₹{{ '{:,.2f}'.format(s.paid_inr + s.pending_inr + (s.paid_usd + s.pending_usd) * usd_to_inr) }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="margin-top: 8px; font-size: 12px; color: var(--text-light);">
+    USD to INR rate: ₹{{ usd_to_inr }} (configurable in Settings)
+  </div>
+</div>
+{% endif %}
+
+{% if invoices %}
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Invoice #</th>
+        <th>Client</th>
+        <th>Date</th>
+        <th>Currency</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th>Auto</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      {% set sym = currency_symbols.get(inv.currency or 'INR', inv.currency or 'INR') %}
+      <tr>
+        <td style="font-weight: 600;"><a href="/invoices/{{ inv.id }}" style="color: var(--primary); text-decoration: none;">{{ inv.invoice_number }}</a></td>
+        <td>{{ inv.client_name }}</td>
+        <td style="font-size: 13px;">{{ inv.invoice_date }}</td>
+        <td><span class="badge">{{ inv.currency or 'INR' }}</span></td>
+        <td style="font-weight: 600;">{{ sym }}{{ '%.2f'|format(inv.total) }}</td>
+        <td><span class="badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
+        <td>
+          {% if inv.auto_generate %}
+            <span class="badge badge-recurring">Every {{ inv.billing_frequency }} mo</span>
+          {% else %}
+            <span style="color: var(--text-light);">&mdash;</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <a href="/invoices/{{ inv.id }}" class="btn btn-sm btn-outline">View</a>
+            {% if has_perm('edit_invoice') %}
+            <a href="/invoices/{{ inv.id }}/edit" class="btn btn-sm btn-outline">Edit</a>
+            {% endif %}
+            {% if has_perm('delete_invoice') %}
+            <form method="POST" action="/invoices/{{ inv.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('Delete invoice {{ inv.invoice_number }}?');">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; color: var(--text-light); padding: 40px;">
+  No invoices yet. <a href="/invoices/new">Create your first invoice</a>.
+</div>
+{% endif %}
+
+<!-- Invoice Import Modal -->
+<div class="modal-overlay" id="invoiceImportModal">
+  <div class="modal">
+    <h3>Import Invoices from Excel</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Columns: <b>client_name, invoice_number, invoice_date, due_date, total, currency, status, remarks</b>.<br>
+      Client must exist. Currency: INR or USD. Status: draft, sent, or paid.
+    </p>
+    <form method="POST" action="/admin/import-invoices" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <input type="file" name="excel_file" accept=".xlsx,.xls" required style="padding: 8px;">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('invoiceImportModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

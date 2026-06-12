@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.company_name }} - Lead{% endblock %}
+{% block content %}
+<div class="leads-workspace lead-detail-workspace">
+  <section class="lead-detail-hero">
+    <div>
+      <a href="/leads" class="lead-back-link">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Leads
+      </a>
+      <div class="lead-detail-title-row">
+        <h1>{{ lead.company_name }}</h1>
+        <span class="badge {{ stage_badges.get(lead.stage, '') }}">{{ stage_labels.get(lead.stage, lead.stage) }}</span>
+      </div>
+      <div class="lead-contact-pills">
+        <span>{{ lead.assigned_name or 'Unassigned' }}</span>
+        {% if lead.contact_person %}<span>{{ lead.contact_person }}</span>{% endif %}
+        {% if lead.phone %}<a href="tel:{{ lead.phone }}">{{ lead.phone }}</a>{% endif %}
+        {% if lead.email %}<a href="mailto:{{ lead.email }}">{{ lead.email }}</a>{% endif %}
+        {% if lead.source %}<span>{{ lead.source }}</span>{% endif %}
+        {% if lead.converted_client_name %}<span>Client: {{ lead.converted_client_name }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="lead-detail-actions">
+      {% if has_perm('convert_lead') and not lead.converted_client_id %}
+      <button class="btn btn-primary" onclick="document.getElementById('convertCard').scrollIntoView({behavior:'smooth'});">Convert</button>
+      {% endif %}
+      {% if has_perm('delete_lead') %}
+      <form method="POST" action="/leads/{{ lead.id }}/delete" onsubmit="return confirm('Delete this lead and its follow-ups?');">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-danger">Delete</button>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="lead-stage-rail" aria-label="Lead stage progress">
+    {% for stage, label in stages %}
+    {% set pos = stage_position.get(stage, 0) %}
+    <div class="lead-stage-step{% if stage == lead.stage %} active{% elif pos < current_stage_position and lead.stage != 'on_hold' %} done{% endif %}" data-stage="{{ stage }}">
+      <span class="lead-stage-dot"></span>
+      <span>{{ label }}</span>
+    </div>
+    {% endfor %}
+  </section>
+
+  <div class="lead-detail-grid">
+    <main>
+      {% if has_perm('edit_lead') %}
+      <section class="lead-panel">
+        <div class="lead-section-head">
+          <div>
+            <h2>Lead details</h2>
+            <p class="page-sub">Updated {{ lead.updated_at or lead.created_at }}</p>
+          </div>
+        </div>
+        <form method="POST" action="/leads/{{ lead.id }}/edit" class="lead-edit-form">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+
+          <div class="lead-form-section">
+            <div class="form-row">
+              <div class="form-group grow">
+                <label for="company-name">Company / Lead Name</label>
+                <input id="company-name" type="text" name="company_name" value="{{ lead.company_name }}" required>
+              </div>
+              <div class="form-group grow">
+                <label for="contact-person">Contact Person</label>
+                <input id="contact-person" type="text" name="contact_person" value="{{ lead.contact_person or '' }}">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group grow">
+                <label for="lead-email">Email</label>
+                <input id="lead-email" type="email" name="email" value="{{ lead.email or '' }}">
+              </div>
+              <div class="form-group grow">
+                <label for="lead-phone">Phone</label>
+                <input id="lead-phone" type="text" name="phone" value="{{ lead.phone or '' }}">
+              </div>
+              <div class="form-group grow">
+                <label for="lead-source">Source</label>
+                <input id="lead-source" type="text" name="source" value="{{ lead.source or '' }}">
+              </div>
+            </div>
+          </div>
+
+          <div class="lead-form-section">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="lead-stage">Stage</label>
+                <select id="lead-stage" name="stage">
+                  {% for stage, label in stages %}
+                  {% if stage != 'converted' or lead.converted_client_id %}
+                  <option value="{{ stage }}" {% if lead.stage == stage %}selected{% endif %}>{{ label }}</option>
+                  {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="lead-owner">Owner</label>
+                <select id="lead-owner" name="assigned_to">
+                  <option value="0">Unassigned</option>
+                  {% for person in sales_people %}
+                  <option value="{{ person.id }}" {% if lead.assigned_to == person.id %}selected{% endif %}>{{ person.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="lead-value">Expected Value</label>
+                <input id="lead-value" type="number" name="estimated_value" min="0" step="0.01" value="{{ lead.estimated_value or 0 }}">
+              </div>
+              <div class="form-group grow">
+                <label for="stage-note">Stage Note</label>
+                <input id="stage-note" type="text" name="stage_note" placeholder="Optional note when changing stage">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group grow">
+                <label for="lead-requirement">Requirement</label>
+                <textarea id="lead-requirement" name="requirement" rows="6">{{ lead.requirement or '' }}</textarea>
+              </div>
+              <div class="form-group grow">
+                <label for="lead-notes">Notes</label>
+                <textarea id="lead-notes" name="notes" rows="6">{{ lead.notes or '' }}</textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="lead-form-actions">
+            <button type="submit" class="btn btn-primary">Save lead</button>
+          </div>
+        </form>
+      </section>
+      {% else %}
+      <section class="lead-panel">
+        <h2>Lead details</h2>
+        <div class="lead-readonly-grid">
+          <div>
+            <span class="stat-sub">Contact</span>
+            <strong>{{ lead.contact_person or '-' }}</strong>
+          </div>
+          <div>
+            <span class="stat-sub">Email</span>
+            <strong>{{ lead.email or '-' }}</strong>
+          </div>
+          <div>
+            <span class="stat-sub">Phone</span>
+            <strong>{{ lead.phone or '-' }}</strong>
+          </div>
+          <div>
+            <span class="stat-sub">Source</span>
+            <strong>{{ lead.source or '-' }}</strong>
+          </div>
+        </div>
+        <hr>
+        <p class="task-desc">{{ lead.requirement or 'No requirement saved.' }}</p>
+      </section>
+      {% endif %}
+
+      <section class="lead-panel">
+        <div class="lead-section-head">
+          <div>
+            <h2>Follow-ups</h2>
+            <p class="page-sub">{{ followups|length }} reminder{% if followups|length != 1 %}s{% endif %}</p>
+          </div>
+        </div>
+
+        {% if has_perm('manage_lead_followups') and lead.stage != 'converted' %}
+        <form method="POST" action="/leads/{{ lead.id }}/followups/add" class="lead-followup-add">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+          <div class="form-group">
+            <label for="followup-date">Date</label>
+            <input id="followup-date" type="date" name="followup_date" value="{{ today }}" required>
+          </div>
+          <div class="form-group">
+            <label for="followup-time">Time</label>
+            <input id="followup-time" type="time" name="followup_time" value="10:00" required>
+          </div>
+          <div class="form-group grow">
+            <label for="followup-note">Reminder Note</label>
+            <input id="followup-note" type="text" name="note" placeholder="Call, send proposal, collect approval" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+        {% endif %}
+
+        {% if followups %}
+        <div class="lead-followup-list">
+          {% for f in followups %}
+          {% set is_due = f.status == 'pending' and f.due_at <= now_str %}
+          {% set is_today = f.status == 'pending' and f.due_at[:10] == today_str %}
+          <article class="lead-followup-item{% if is_due %} overdue{% elif is_today %} today{% endif %}">
+            <div class="lead-followup-date">
+              <strong>{{ f.due_at }}</strong>
+              <span>{{ f.created_by_name or 'System' }}</span>
+            </div>
+            <div class="lead-followup-body">
+              <div>{{ f.note }}</div>
+              <div class="lead-followup-meta">
+                <span class="badge {% if f.status == 'pending' %}badge-warning{% elif f.status == 'done' %}badge-done{% else %}badge-draft{% endif %}">{{ f.status }}</span>
+                <span>Telegram: {{ f.telegram_sent_at or '-' }}</span>
+              </div>
+            </div>
+            {% if has_perm('manage_lead_followups') and f.status == 'pending' %}
+            <div class="lead-followup-actions">
+              <form method="POST" action="/leads/followups/{{ f.id }}/complete" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-outline">Done</button>
+              </form>
+              <form method="POST" action="/leads/followups/{{ f.id }}/complete" class="inline-form">
+                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                <input type="hidden" name="status" value="cancelled">
+                <button type="submit" class="btn btn-sm btn-outline">Cancel</button>
+              </form>
+            </div>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty lead-empty">
+          <div class="empty-title">No follow-ups yet</div>
+          <div>Add the next sales action to keep this lead moving.</div>
+        </div>
+        {% endif %}
+      </section>
+    </main>
+
+    <aside class="lead-detail-side">
+      <section class="lead-panel lead-snapshot">
+        <h2>Snapshot</h2>
+        <div class="lead-snapshot-grid">
+          <div>
+            <span class="stat-sub">Created</span>
+            <strong>{{ lead.created_at }}</strong>
+          </div>
+          <div>
+            <span class="stat-sub">Next Follow-up</span>
+            <strong>{{ lead.next_followup_at or 'None' }}</strong>
+          </div>
+          <div>
+            <span class="stat-sub">Expected Value</span>
+            <strong>{% if lead.estimated_value %}{{ "{:,.0f}".format(lead.estimated_value) }}{% else %}-{% endif %}</strong>
+          </div>
+          {% if lead.converted_at %}
+          <div>
+            <span class="stat-sub">Converted</span>
+            <strong>{{ lead.converted_at }}</strong>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      {% if has_perm('convert_lead') and not lead.converted_client_id %}
+      <section class="lead-panel lead-convert-panel" id="convertCard">
+        <h2>Convert to client</h2>
+        <form method="POST" action="/leads/{{ lead.id }}/convert">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+          <div class="form-group">
+            <label for="client-name">Client Name</label>
+            <input id="client-name" type="text" name="client_name" value="{{ lead.company_name }}" required>
+          </div>
+          <div class="form-group">
+            <label for="client-notes">Client Notes</label>
+            <textarea id="client-notes" name="client_notes" rows="5" placeholder="Optional notes for the client record"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Create client</button>
+        </form>
+      </section>
+      {% endif %}
+
+      <section class="lead-panel">
+        <h2>Stage history</h2>
+        {% if history %}
+        <div class="lead-history-list">
+          {% for h in history %}
+          <article class="lead-history-item">
+            <div class="lead-history-title">{{ stage_labels.get(h.from_stage, h.from_stage or 'New') }} -> {{ stage_labels.get(h.to_stage, h.to_stage) }}</div>
+            <div class="lead-history-meta">{{ h.created_at }}{% if h.changed_by_name %} by {{ h.changed_by_name }}{% endif %}</div>
+            {% if h.note %}<div class="lead-requirement">{{ h.note }}</div>{% endif %}
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="page-sub">No stage changes yet.</p>
+        {% endif %}
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

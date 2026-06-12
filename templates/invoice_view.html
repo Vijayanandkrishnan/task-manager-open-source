@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Invoice {{ invoice.invoice_number }} - Task Manager{% endblock %}
+{% block content %}
+{% set currency = invoice.currency or 'INR' %}
+{% set sym = currency_sym %}
+<div style="margin-bottom: 20px;">
+  <a href="/invoices" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; All Invoices</a>
+  <div class="flex-between" style="margin-top: 4px;">
+    <h1>{{ invoice.invoice_number }}</h1>
+    <div style="display: flex; gap: 8px;">
+      <a href="/invoices/{{ invoice.id }}/pdf" target="_blank" class="btn btn-outline">Print / PDF</a>
+      <a href="/invoices/{{ invoice.id }}/edit" class="btn btn-outline">Edit</a>
+      {% if invoice.status != 'paid' %}
+      <form method="POST" action="/invoices/{{ invoice.id }}/send" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-success">Send to Accountant</button>
+      </form>
+      {% endif %}
+      <form method="POST" action="/invoices/{{ invoice.id }}/mark-paid" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        {% if invoice.status == 'paid' %}
+          <button type="submit" class="btn btn-outline" onclick="return confirm('Mark this invoice as unpaid?');">Mark Unpaid</button>
+        {% else %}
+          <button type="submit" class="btn btn-purple">Mark as Paid</button>
+        {% endif %}
+      </form>
+      {% if not invoice.share_token %}
+      <form method="POST" action="/invoices/{{ invoice.id }}/share" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-outline" title="Create a shareable link for the client">Share</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if invoice.share_token %}
+<div style="background: var(--accent-soft); border: 1px solid var(--line-soft); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px;">
+  <span style="font-size: 14px; font-weight: 600; color: var(--accent-ink); white-space: nowrap;">Client Portal Link:</span>
+  <input type="text" id="portalLink" value="{{ request.host_url }}portal/invoice/{{ invoice.share_token }}" readonly
+         style="flex: 1; font-size: 13px; font-family: monospace; background: #fff; border: 1px solid var(--line-soft); padding: 6px 10px; border-radius: 4px;">
+  <button class="btn btn-sm btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('portalLink').value); this.textContent='Copied!'; setTimeout(()=>this.textContent='Copy Link', 2000);">Copy Link</button>
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h3>Client</h3>
+    <div style="font-weight: 600; font-size: 16px; margin-bottom: 4px;">{{ invoice.client_name }}</div>
+    {% if invoice.contact_person %}<div style="font-size: 13px;">{{ invoice.contact_person }}</div>{% endif %}
+    {% if invoice.email %}<div style="font-size: 13px;">{{ invoice.email }}</div>{% endif %}
+    {% if invoice.phone %}<div style="font-size: 13px;">{{ invoice.phone }}</div>{% endif %}
+    {% if invoice.address %}<div style="font-size: 13px; color: var(--text-light); margin-top: 4px;">{{ invoice.address }}</div>{% endif %}
+  </div>
+  <div class="card">
+    <h3>Invoice Details</h3>
+    <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 14px;">
+      <span style="color: var(--text-light);">Status:</span>
+      <span><span class="badge badge-{{ invoice.status }}">{{ invoice.status }}</span></span>
+      <span style="color: var(--text-light);">Currency:</span>
+      <span>{{ currency }}</span>
+      {% if profile_name %}
+      <span style="color: var(--text-light);">Invoiced As:</span>
+      <span style="font-weight: 600;">{{ profile_name }}</span>
+      {% endif %}
+      <span style="color: var(--text-light);">Date:</span>
+      <span>{{ invoice.invoice_date }}</span>
+      {% if invoice.due_date %}
+      <span style="color: var(--text-light);">Due:</span>
+      <span>{{ invoice.due_date }}</span>
+      {% endif %}
+      {% if invoice.paid_date %}
+      <span style="color: var(--text-light);">Paid On:</span>
+      <span style="color: var(--success); font-weight: 600;">{{ invoice.paid_date }}</span>
+      {% endif %}
+      {% if invoice.billing_frequency > 0 %}
+      <span style="color: var(--text-light);">Billing:</span>
+      <span>Every {{ invoice.billing_frequency }} month(s)</span>
+      <span style="color: var(--text-light);">Auto:</span>
+      <span>{{ 'Yes' if invoice.auto_generate else 'No' }}</span>
+      {% if invoice.next_generate_date %}
+      <span style="color: var(--text-light);">Next:</span>
+      <span>{{ invoice.next_generate_date }}</span>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Line Items</h2>
+  <table>
+    <thead>
+      <tr><th>Description</th><th>Qty</th><th>Unit Price</th><th style="text-align: right;">Total</th></tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>{{ item.description }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>{{ sym }}{{ '%.2f'|format(item.unit_price) }}</td>
+        <td style="text-align: right; font-weight: 600;">{{ sym }}{{ '%.2f'|format(item.total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div style="text-align: right; margin-top: 16px; padding-top: 16px; border-top: 2px solid var(--border);">
+    <div style="font-size: 14px; margin-bottom: 4px;">Subtotal: <strong>{{ sym }}{{ '%.2f'|format(invoice.subtotal) }}</strong></div>
+    {% if invoice.discount_percent > 0 %}
+    <div style="font-size: 14px; margin-bottom: 4px;">Discount ({{ invoice.discount_percent }}%): -{{ sym }}{{ '%.2f'|format(invoice.discount_amount) }}</div>
+    {% endif %}
+    <div style="font-size: 24px; font-weight: 700; color: var(--primary);">{{ sym }}{{ '%.2f'|format(invoice.total) }} {{ currency }}</div>
+  </div>
+</div>
+
+{% if invoice.remarks %}
+<div class="card">
+  <h3>Remarks</h3>
+  <p style="font-size: 14px; white-space: pre-wrap;">{{ invoice.remarks }}</p>
+</div>
+{% endif %}
+
+{% if generated %}
+<div class="card">
+  <h2>Auto-Generated Invoices</h2>
+  <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">Invoices automatically created from this template:</p>
+  <table>
+    <thead><tr><th>Invoice #</th><th>Date</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for g in generated %}
+      <tr>
+        <td><a href="/invoices/{{ g.id }}" style="color: var(--primary); text-decoration: none; font-weight: 600;">{{ g.invoice_number }}</a></td>
+        <td>{{ g.invoice_date }}</td>
+        <td>{{ sym }}{{ '%.2f'|format(g.total) }}</td>
+        <td><span class="badge badge-{{ g.status }}">{{ g.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

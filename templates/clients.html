@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Clients - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Clients</h1>
+  <div style="display: flex; gap: 8px;">
+    {% if has_perm('import_clients') %}
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('clientImportModal').classList.add('active')">Import Excel</button>
+    <a href="/admin/client-template" class="btn btn-sm btn-outline">Template</a>
+    {% endif %}
+    {% if has_perm('create_client') %}
+    <button class="btn btn-purple" onclick="document.getElementById('addClientModal').classList.add('active')">+ Add Client</button>
+    {% endif %}
+  </div>
+</div>
+
+{% set ns = namespace(project_total=0, no_project=0) %}
+{% for c in clients %}
+  {% set count = client_projects.get(c.id, [])|length %}
+  {% set ns.project_total = ns.project_total + count %}
+  {% if count == 0 %}{% set ns.no_project = ns.no_project + 1 %}{% endif %}
+{% endfor %}
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ clients|length }}</div>
+    <div class="stat-label">Clients</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ ns.project_total }}</div>
+    <div class="stat-label">Linked Projects</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ ns.no_project }}</div>
+    <div class="stat-label">Need Project</div>
+  </div>
+</div>
+
+{% if clients %}
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Client Name</th>
+        <th>Contact Person</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Projects</th>
+        <th>Added</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in clients %}
+      <tr>
+        <td style="font-weight: 600;">{{ c.name }}</td>
+        <td>{{ c.contact_person or '—' }}</td>
+        <td>{{ c.email or '—' }}</td>
+        <td>{{ c.phone or '—' }}</td>
+        <td style="font-size: 12px;">
+          {% if client_projects.get(c.id) %}
+            {% for p in client_projects[c.id] %}
+              <div style="margin-bottom: 2px;">
+                <span class="badge badge-{{ p.status }}" style="font-size: 11px; padding: 1px 6px;">{{ p.status }}</span>
+                {{ p.name }}
+              </div>
+            {% endfor %}
+          {% else %}
+            <span style="color: var(--text-light);">No projects</span>
+          {% endif %}
+        </td>
+        <td style="font-size: 13px; color: var(--text-light);">{{ c.created_at[:10] }}</td>
+        <td>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            {% if has_perm('edit_client') %}
+            <button class="btn btn-sm btn-outline" onclick="openEditClient({{ c.id }}, '{{ c.name|e }}', '{{ c.contact_person|e }}', '{{ c.email|e }}', '{{ c.phone|e }}', '{{ c.address|e }}', '{{ c.notes|e }}')">Edit</button>
+            {% endif %}
+            {% if has_perm('delete_client') %}
+            <form method="POST" action="/clients/{{ c.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('Delete client {{ c.name }}?');">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; color: var(--text-light); padding: 40px;">
+  No clients yet. Add your first client above.
+</div>
+{% endif %}
+
+<!-- Add Client Modal -->
+<div class="modal-overlay" id="addClientModal">
+  <div class="modal">
+    <h3>Add New Client</h3>
+    <form method="POST" action="/clients/add">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group"><label>Client / Company Name *</label>
+        <input type="text" name="name" required placeholder="e.g. Acme Industries Pvt Ltd"></div>
+      <div class="form-group"><label>Contact Person</label>
+        <input type="text" name="contact_person" placeholder="e.g. Rajesh Kumar"></div>
+      <div class="form-group"><label>Email</label>
+        <input type="email" name="email" placeholder="rajesh@acme.com"></div>
+      <div class="form-group"><label>Phone</label>
+        <input type="text" name="phone" placeholder="+91-9876543210"></div>
+      <div class="form-group"><label>Address</label>
+        <textarea name="address" rows="2" placeholder="Full registered address"></textarea></div>
+      <div class="form-group"><label>Notes</label>
+        <textarea name="notes" rows="2" placeholder="Retainer terms, billing cycle, key contacts..."></textarea></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addClientModal')">Cancel</button>
+        <button type="submit" class="btn btn-purple">Add Client</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Client Modal -->
+<div class="modal-overlay" id="editClientModal">
+  <div class="modal">
+    <h3>Edit Client</h3>
+    <form id="editClientForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group"><label>Client / Company Name *</label>
+        <input type="text" name="name" id="ecName" required></div>
+      <div class="form-group"><label>Contact Person</label>
+        <input type="text" name="contact_person" id="ecContact"></div>
+      <div class="form-group"><label>Email</label>
+        <input type="email" name="email" id="ecEmail"></div>
+      <div class="form-group"><label>Phone</label>
+        <input type="text" name="phone" id="ecPhone"></div>
+      <div class="form-group"><label>Address</label>
+        <textarea name="address" id="ecAddress" rows="2"></textarea></div>
+      <div class="form-group"><label>Notes</label>
+        <textarea name="notes" id="ecNotes" rows="2"></textarea></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editClientModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Client Import Modal -->
+<div class="modal-overlay" id="clientImportModal">
+  <div class="modal">
+    <h3>Import Clients from Excel</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Columns: <b>name, contact_person, email, phone, address, notes</b>. Existing client names will be skipped.
+    </p>
+    <form method="POST" action="/admin/import-clients" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <input type="file" name="excel_file" accept=".xlsx,.xls" required style="padding: 8px;">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('clientImportModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditClient(id, name, contact, email, phone, address, notes) {
+  document.getElementById('editClientForm').action = '/clients/' + id + '/edit';
+  document.getElementById('ecName').value = name;
+  document.getElementById('ecContact').value = contact;
+  document.getElementById('ecEmail').value = email;
+  document.getElementById('ecPhone').value = phone;
+  document.getElementById('ecAddress').value = address;
+  document.getElementById('ecNotes').value = notes;
+  document.getElementById('editClientModal').classList.add('active');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('active'); });
+});
+</script>
+{% endblock %}

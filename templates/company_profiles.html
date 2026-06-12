@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Company Profiles - Task Manager{% endblock %}
+{% block content %}
+<div style="margin-bottom: 20px;">
+  <a href="/settings" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; Settings</a>
+  <h1 style="margin-top: 4px;">Company Profiles (White-Label)</h1>
+  <p style="font-size: 13px; color: var(--text-light);">
+    Create multiple company profiles to use on invoices. When creating an invoice, choose which company name appears.
+    The default profile from Settings is used when no profile is selected.
+  </p>
+</div>
+
+<!-- Add New Profile -->
+<div class="card">
+  <h2>Add Company Profile</h2>
+  <form method="POST" action="/settings/company-profiles/add">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-row" style="margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Company Name *</label>
+        <input type="text" name="name" placeholder="e.g. Your Company" required>
+      </div>
+      <div class="form-group grow">
+        <label>Logo URL</label>
+        <input type="text" name="logo_url" placeholder="https://example.com/logo.png">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom: 8px;">
+      <label>Address</label>
+      <input type="text" name="address" placeholder="123 Business St, City, Country">
+    </div>
+    <div class="form-row" style="margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="info@company.com">
+      </div>
+      <div class="form-group grow">
+        <label>Phone</label>
+        <input type="text" name="phone" placeholder="+91-XXXXXXXXXX">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">+ Add Profile</button>
+  </form>
+</div>
+
+<!-- Existing Profiles -->
+{% if profiles %}
+<div class="card">
+  <h2>Existing Profiles</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Company Name</th>
+        <th>Email</th>
+        <th>Phone</th>
+        <th>Default</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in profiles %}
+      <tr>
+        <td style="font-weight: 600;">
+          {{ p.name }}
+          {% if p.logo_url %}<br><img src="{{ p.logo_url }}" style="max-height: 24px; margin-top: 4px;">{% endif %}
+        </td>
+        <td style="font-size: 13px;">{{ p.email or '&mdash;' }}</td>
+        <td style="font-size: 13px;">{{ p.phone or '&mdash;' }}</td>
+        <td>
+          {% if p.is_default %}
+            <span class="badge badge-done">Default</span>
+          {% else %}
+            <form method="POST" action="/settings/company-profiles/{{ p.id }}/default" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline">Set Default</button>
+            </form>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display: flex; gap: 4px;">
+            <button class="btn btn-sm btn-outline" onclick="editProfile({{ p.id }}, '{{ p.name|e }}', '{{ p.logo_url|e }}', '{{ p.address|e }}', '{{ p.email|e }}', '{{ p.phone|e }}')">Edit</button>
+            <form method="POST" action="/settings/company-profiles/{{ p.id }}/delete" class="inline-form"
+                  onsubmit="return confirm('Delete profile {{ p.name }}?');">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="text-align: center; color: var(--text-light); padding: 40px;">
+  No company profiles yet. Add one above to use white-label invoicing.
+</div>
+{% endif %}
+
+<!-- Edit Profile Modal -->
+<div class="modal-overlay" id="editProfileModal">
+  <div class="modal">
+    <h3>Edit Company Profile</h3>
+    <form id="editProfileForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 8px;">
+        <label>Company Name</label>
+        <input type="text" name="name" id="editProfileName" required>
+      </div>
+      <div class="form-group" style="margin-bottom: 8px;">
+        <label>Logo URL</label>
+        <input type="text" name="logo_url" id="editProfileLogo">
+      </div>
+      <div class="form-group" style="margin-bottom: 8px;">
+        <label>Address</label>
+        <input type="text" name="address" id="editProfileAddress">
+      </div>
+      <div class="form-row" style="margin-bottom: 8px;">
+        <div class="form-group grow">
+          <label>Email</label>
+          <input type="email" name="email" id="editProfileEmail">
+        </div>
+        <div class="form-group grow">
+          <label>Phone</label>
+          <input type="text" name="phone" id="editProfilePhone">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editProfileModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editProfile(id, name, logo, address, email, phone) {
+  document.getElementById('editProfileForm').action = '/settings/company-profiles/' + id + '/edit';
+  document.getElementById('editProfileName').value = name;
+  document.getElementById('editProfileLogo').value = logo;
+  document.getElementById('editProfileAddress').value = address;
+  document.getElementById('editProfileEmail').value = email;
+  document.getElementById('editProfilePhone').value = phone;
+  document.getElementById('editProfileModal').classList.add('active');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('active'); });
+});
+</script>
+{% endblock %}

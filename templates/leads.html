@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block title %}Sales Leads - Task Manager{% endblock %}
+{% block content %}
+<div class="leads-workspace">
+  <section class="lead-hero">
+    <div class="lead-hero-copy">
+      <div class="page-eyebrow">Sales pipeline</div>
+      <h1>Lead <em>desk</em></h1>
+      <p class="page-sub">{{ today_str }} · {{ active_count }} active · {{ due_count }} due now</p>
+      <div class="lead-quick-actions">
+        <a href="/leads?due=due" class="lead-alert-pill{% if due_filter == 'due' %} active{% endif %}">
+          <span class="lead-alert-count">{{ due_count }}</span>
+          <span>Due now</span>
+        </a>
+        <a href="/leads?due=today" class="lead-alert-pill{% if due_filter == 'today' %} active{% endif %}">
+          <span class="lead-alert-count">{{ today_count }}</span>
+          <span>Today</span>
+        </a>
+        {% if unassigned_count %}
+        <a href="/leads?assigned=-1" class="lead-alert-pill muted{% if assigned_filter == -1 %} active{% endif %}">
+          <span class="lead-alert-count">{{ unassigned_count }}</span>
+          <span>Unassigned</span>
+        </a>
+        {% endif %}
+        {% if current_role == 'superadmin' %}
+        <a href="/settings/lead-intake" class="lead-alert-pill muted">
+          <span class="lead-alert-count">+</span>
+          <span>Intake</span>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="lead-metric-grid">
+      <div class="lead-metric">
+        <span class="lead-metric-label">Active</span>
+        <strong>{{ active_count }}</strong>
+        <span class="lead-metric-sub">Open leads</span>
+      </div>
+      <div class="lead-metric">
+        <span class="lead-metric-label">Pipeline</span>
+        <strong>{{ "{:,.0f}".format(pipeline_value) }}</strong>
+        <span class="lead-metric-sub">Expected value</span>
+      </div>
+      <div class="lead-metric">
+        <span class="lead-metric-label">Converted</span>
+        <strong>{{ stage_counts.get('converted', 0) }}</strong>
+        <span class="lead-metric-sub">Clients created</span>
+      </div>
+      <div class="lead-metric">
+        <span class="lead-metric-label">This view</span>
+        <strong>{{ leads|length }}</strong>
+        <span class="lead-metric-sub">{{ "{:,.0f}".format(filtered_total_value) }} value</span>
+      </div>
+    </div>
+  </section>
+
+  <nav class="stage-strip" aria-label="Lead stages">
+    <a href="/leads" class="stage-chip{% if not stage_filter %} active{% endif %}" data-stage="all">
+      <span class="stage-chip-top">
+        <span>All</span>
+        <strong>{{ total_count }}</strong>
+      </span>
+      <span class="stage-chip-sub">{{ "{:,.0f}".format(pipeline_value) }} open value</span>
+    </a>
+    {% for stage, label in stages %}
+    <a href="/leads?stage={{ stage }}" class="stage-chip{% if stage_filter == stage %} active{% endif %}" data-stage="{{ stage }}">
+      <span class="stage-chip-top">
+        <span>{{ label }}</span>
+        <strong>{{ stage_counts.get(stage, 0) }}</strong>
+      </span>
+      <span class="stage-chip-sub">{{ "{:,.0f}".format(stage_values.get(stage, 0)) }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  <section class="lead-toolbar">
+    <form method="GET" action="/leads" class="lead-filter-grid">
+      <div class="form-group grow lead-search">
+        <label for="lead-search">Search</label>
+        <input id="lead-search" type="search" name="q" value="{{ search }}" placeholder="Company, contact, phone, requirement">
+      </div>
+      <div class="form-group">
+        <label for="lead-stage">Stage</label>
+        <select id="lead-stage" name="stage">
+          <option value="">All stages</option>
+          {% for stage, label in stages %}
+          <option value="{{ stage }}" {% if stage_filter == stage %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="lead-owner">Owner</label>
+        <select id="lead-owner" name="assigned">
+          <option value="0">Anyone</option>
+          <option value="-1" {% if assigned_filter == -1 %}selected{% endif %}>Unassigned</option>
+          {% for person in sales_people %}
+          <option value="{{ person.id }}" {% if assigned_filter == person.id %}selected{% endif %}>{{ person.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="lead-due">Follow-up</label>
+        <select id="lead-due" name="due">
+          <option value="">Any</option>
+          <option value="due" {% if due_filter == 'due' %}selected{% endif %}>Due now</option>
+          <option value="today" {% if due_filter == 'today' %}selected{% endif %}>Due today</option>
+          <option value="none" {% if due_filter == 'none' %}selected{% endif %}>No reminder</option>
+        </select>
+      </div>
+      <div class="lead-filter-actions">
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <a href="/leads" class="btn btn-outline">Reset</a>
+      </div>
+    </form>
+  </section>
+
+  {% if has_perm('create_lead') %}
+  <details class="lead-create-panel"{% if not leads %} open{% endif %}>
+    <summary>
+      <span>
+        <span class="lead-summary-title">New enquiry</span>
+        <span class="lead-summary-meta">Fresh intake</span>
+      </span>
+      <span class="btn btn-sm btn-primary">Add lead</span>
+    </summary>
+    <form method="POST" action="/leads/add" class="lead-create-form">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+
+      <div class="lead-form-section">
+        <h2>Lead</h2>
+        <div class="form-row">
+          <div class="form-group grow">
+            <label for="new-company">Company / Lead Name</label>
+            <input id="new-company" type="text" name="company_name" required placeholder="Acme Industries">
+          </div>
+          <div class="form-group">
+            <label for="new-stage">Stage</label>
+            <select id="new-stage" name="stage">
+              {% for stage, label in stages %}
+              {% if stage != 'converted' %}<option value="{{ stage }}">{{ label }}</option>{% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="new-value">Expected Value</label>
+            <input id="new-value" type="number" name="estimated_value" min="0" step="0.01" value="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group grow">
+            <label for="new-requirement">Requirement</label>
+            <textarea id="new-requirement" name="requirement" rows="4" placeholder="Website redesign, monthly SEO, automation setup"></textarea>
+          </div>
+          <div class="form-group grow">
+            <label for="new-notes">Notes</label>
+            <textarea id="new-notes" name="notes" rows="4" placeholder="Budget, urgency, objections, decision process"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="lead-form-section">
+        <h2>Contact</h2>
+        <div class="form-row">
+          <div class="form-group grow">
+            <label for="new-contact">Contact Person</label>
+            <input id="new-contact" type="text" name="contact_person" placeholder="Decision maker or coordinator">
+          </div>
+          <div class="form-group grow">
+            <label for="new-email">Email</label>
+            <input id="new-email" type="email" name="email" placeholder="contact@example.com">
+          </div>
+          <div class="form-group grow">
+            <label for="new-phone">Phone</label>
+            <input id="new-phone" type="text" name="phone" placeholder="+91...">
+          </div>
+          <div class="form-group grow">
+            <label for="new-source">Source</label>
+            <input id="new-source" type="text" name="source" placeholder="Website, referral, WhatsApp">
+          </div>
+        </div>
+      </div>
+
+      <div class="lead-form-section lead-followup-section">
+        <h2>Follow-up</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="new-owner">Owner</label>
+            <select id="new-owner" name="assigned_to">
+              <option value="0">Unassigned</option>
+              {% for person in sales_people %}
+              <option value="{{ person.id }}" {% if person.id == session.user_id %}selected{% endif %}>{{ person.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="new-follow-date">Date</label>
+            <input id="new-follow-date" type="date" name="followup_date">
+          </div>
+          <div class="form-group">
+            <label for="new-follow-time">Time</label>
+            <input id="new-follow-time" type="time" name="followup_time" value="10:00">
+          </div>
+          <div class="form-group grow">
+            <label for="new-follow-note">Reminder Note</label>
+            <input id="new-follow-note" type="text" name="followup_note" placeholder="Call, send quote, collect confirmation">
+          </div>
+          <button type="submit" class="btn btn-primary lead-submit">Create enquiry</button>
+        </div>
+      </div>
+    </form>
+  </details>
+  {% endif %}
+
+  <section class="lead-pipeline-card">
+    <div class="lead-section-head">
+      <div>
+        <h2>Pipeline</h2>
+        <p class="page-sub">{{ leads|length }} lead{% if leads|length != 1 %}s{% endif %} in this view</p>
+      </div>
+      {% if search or stage_filter or due_filter or assigned_filter %}
+      <a href="/leads" class="btn btn-sm btn-outline">Clear view</a>
+      {% endif %}
+    </div>
+
+    {% if leads %}
+    <div class="lead-table-wrap">
+      <table class="lead-table">
+        <thead>
+          <tr>
+            <th>Lead</th>
+            <th>Stage</th>
+            <th>Owner</th>
+            <th>Next Follow-up</th>
+            <th>Value</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lead in leads %}
+          {% set is_due = lead.next_followup_at and lead.next_followup_at <= now_str and lead.stage != 'converted' %}
+          {% set is_today = lead.next_followup_at and lead.next_followup_at[:10] == today_str and lead.stage != 'converted' %}
+          <tr>
+            <td class="lead-main-cell">
+              <a href="/leads/{{ lead.id }}" class="lead-title-link">{{ lead.company_name }}</a>
+              <div class="lead-contact-line">
+                <span>{{ lead.contact_person or 'No contact' }}</span>
+                {% if lead.phone %}<span>{{ lead.phone }}</span>{% endif %}
+                {% if lead.email %}<span>{{ lead.email }}</span>{% endif %}
+              </div>
+              {% if lead.requirement %}
+              <div class="lead-requirement">{{ lead.requirement[:132] }}{% if lead.requirement|length > 132 %}...{% endif %}</div>
+              {% endif %}
+            </td>
+            <td><span class="badge {{ stage_badges.get(lead.stage, '') }}">{{ stage_labels.get(lead.stage, lead.stage) }}</span></td>
+            <td>{{ lead.assigned_name or 'Unassigned' }}</td>
+            <td>
+              {% if lead.next_followup_at %}
+              <span class="lead-due-pill {% if is_due %}overdue{% elif is_today %}today{% else %}scheduled{% endif %}">{{ lead.next_followup_at }}</span>
+              {% else %}
+              <span class="lead-muted">None</span>
+              {% endif %}
+            </td>
+            <td class="lead-value">{% if lead.estimated_value %}{{ "{:,.0f}".format(lead.estimated_value) }}{% else %}-{% endif %}</td>
+            <td class="lead-action-cell"><a href="/leads/{{ lead.id }}" class="btn btn-sm btn-primary">Open</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="lead-card-list">
+      {% for lead in leads %}
+      {% set is_due = lead.next_followup_at and lead.next_followup_at <= now_str and lead.stage != 'converted' %}
+      {% set is_today = lead.next_followup_at and lead.next_followup_at[:10] == today_str and lead.stage != 'converted' %}
+      <a href="/leads/{{ lead.id }}" class="lead-mobile-card">
+        <span class="lead-mobile-top">
+          <strong>{{ lead.company_name }}</strong>
+          <span class="badge {{ stage_badges.get(lead.stage, '') }}">{{ stage_labels.get(lead.stage, lead.stage) }}</span>
+        </span>
+        <span class="lead-contact-line">
+          <span>{{ lead.contact_person or 'No contact' }}</span>
+          {% if lead.phone %}<span>{{ lead.phone }}</span>{% endif %}
+        </span>
+        {% if lead.requirement %}<span class="lead-requirement">{{ lead.requirement[:110] }}{% if lead.requirement|length > 110 %}...{% endif %}</span>{% endif %}
+        <span class="lead-mobile-meta">
+          <span>{{ lead.assigned_name or 'Unassigned' }}</span>
+          {% if lead.next_followup_at %}
+          <span class="lead-due-pill {% if is_due %}overdue{% elif is_today %}today{% else %}scheduled{% endif %}">{{ lead.next_followup_at }}</span>
+          {% else %}
+          <span class="lead-muted">No reminder</span>
+          {% endif %}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty lead-empty">
+      <div class="empty-title">No leads in this view</div>
+      <div>Adjust filters or add a new enquiry.</div>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

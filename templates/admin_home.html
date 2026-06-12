@@ -1,0 +1,366 @@
+{% extends "base.html" %}
+{% block title %}Admin - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Team</h1>
+  <div style="display: flex; gap: 8px;">
+    {% if has_perm('manage_shifts') %}
+    <a href="/admin/shifts" class="btn btn-sm btn-outline">Manage Shifts</a>
+    {% endif %}
+    {% if has_perm('import_team') %}
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('importModal').classList.add('active')">Import Team</button>
+    <a href="/admin/employee-template" class="btn btn-sm btn-outline">Member Template</a>
+    {% endif %}
+    {% if has_perm('assign_tasks_to_others') %}
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('taskImportModal').classList.add('active')">Import Tasks</button>
+    <a href="/admin/task-template" class="btn btn-sm btn-outline">Task Template</a>
+    {% endif %}
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('pwModal').classList.add('active')">Change My Password</button>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ employees|length }}</div>
+    <div class="stat-label">Members</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ employees|selectattr('role', 'equalto', 'sales')|list|length }}</div>
+    <div class="stat-label">Sales</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ employees|selectattr('telegram_chat_id')|list|length }}</div>
+    <div class="stat-label">Telegram Ready</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ shifts|length }}</div>
+    <div class="stat-label">Shifts</div>
+  </div>
+</div>
+
+<!-- Add User -->
+{% if has_perm('create_team_member') %}
+<div class="card">
+  <h2>Add Team Member</h2>
+  <form method="POST" action="/admin/employee/add">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-row" style="margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Full Name</label>
+        <input type="text" name="name" placeholder="e.g. John Smith" required>
+      </div>
+      <div class="form-group grow">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="e.g. john" required>
+      </div>
+      <div class="form-group grow">
+        <label>Password</label>
+        <input type="text" name="password" placeholder="Initial password" required>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Email (optional)</label>
+        <input type="email" name="email" placeholder="john@example.com">
+      </div>
+      <div class="form-group grow">
+        <label>Phone (optional)</label>
+        <input type="text" name="phone" placeholder="+91-9876543210">
+      </div>
+      <div class="form-group grow">
+        <label>Department (optional)</label>
+        <input type="text" name="department" placeholder="e.g. Accounts, Development, Marketing">
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Birthday (optional)</label>
+        <input type="date" name="birthday">
+      </div>
+      <div class="form-group grow">
+        <label>Joining Date (optional)</label>
+        <input type="date" name="joining_date">
+      </div>
+      <div class="form-group grow">
+        <label>Wedding Anniversary (optional)</label>
+        <input type="date" name="wedding_anniversary">
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Telegram Chat ID (optional)</label>
+        <input type="text" name="telegram_chat_id" placeholder="e.g. 123456789">
+      </div>
+      <div class="form-group" style="min-width:140px;">
+        <label>Hourly Rate (optional)</label>
+        <input type="number" name="hourly_rate" value="0" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label>Shift</label>
+        <select name="shift_id" style="width: auto;">
+          <option value="0">— No Shift —</option>
+          {% for s in shifts %}
+          <option value="{{ s.id }}">{{ s.name }} ({{ s.start_time }}–{{ s.end_time }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <select name="role" style="width: auto;">
+          <option value="employee">Member</option>
+          <option value="sales">Sales</option>
+          <option value="accountant">Accountant</option>
+          <option value="subadmin">Team Lead</option>
+          <option value="manager">Manager</option>
+          <option value="admin">Admin</option>
+          {% if session.get('role') == 'superadmin' %}
+          <option value="superadmin">Owner</option>
+          {% endif %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">+ Add Member</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<!-- Employee List -->
+{% if employees %}
+<div class="card">
+  <h2>Team ({{ employees|length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Username</th>
+        <th>Role</th>
+        <th>Department</th>
+        <th>Shift</th>
+        <th>Telegram</th>
+        <th>Added</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set shift_map = {} %}
+      {% for s in shifts %}
+        {% if shift_map.update({s.id: s.name ~ ' (' ~ s.start_time ~ '–' ~ s.end_time ~ ')'}) %}{% endif %}
+      {% endfor %}
+      {% for emp in employees %}
+      <tr>
+        <td>
+          <div style="font-weight: 600;">{{ emp.name }}</div>
+          {% if emp.email %}<div style="font-size: 11px; color: var(--text-light);">{{ emp.email }}</div>{% endif %}
+        </td>
+        <td><code>{{ emp.username }}</code></td>
+        <td><span class="badge {% if emp.role == 'superadmin' %}badge-superadmin{% elif emp.role == 'admin' %}badge-admin{% elif emp.role == 'accountant' %}badge-on-hold{% elif emp.role == 'sales' %}badge-sales{% elif emp.role == 'subadmin' %}badge-subadmin{% else %}badge-done{% endif %}">{{ emp.role }}</span></td>
+        <td style="font-size: 13px;">{{ emp.department or '-' }}</td>
+        <td style="font-size: 12px;">{{ shift_map.get(emp.shift_id, '—') if emp.shift_id else '—' }}</td>
+        <td>
+          {% if emp.telegram_chat_id %}
+            <span style="color: var(--success);">Configured</span>
+          {% else %}
+            <span style="color: var(--text-light);">Not set</span>
+          {% endif %}
+        </td>
+        <td style="font-size: 13px; color: var(--text-light);">{{ emp.created_at[:10] }}</td>
+        <td>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            {% if emp.role not in ('admin', 'superadmin') or emp.id != session.get('user_id') %}
+            <a href="/admin/employee/{{ emp.id }}" class="btn btn-sm btn-primary">View</a>
+            {% endif %}
+            <button class="btn btn-sm btn-outline" onclick="openEditModal({{ emp.id }}, '{{ emp.name|e }}', '{{ emp.telegram_chat_id|e }}', '{{ emp.email|default('',true)|e }}', '{{ emp.phone|default('',true)|e }}', '{{ emp.department|default('',true)|e }}', '{{ emp.role }}', '{{ emp.birthday|default('',true)|e }}', '{{ emp.joining_date|default('',true)|e }}', '{{ emp.wedding_anniversary|default('',true)|e }}', '{{ emp.hourly_rate|default(0,true) }}', {{ emp.shift_id|default(0,true) }})">Edit</button>
+            {% if emp.telegram_chat_id %}
+            <form method="POST" action="/admin/test-telegram/{{ emp.id }}" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline">Test TG</button>
+            </form>
+            {% endif %}
+            {% if emp.role not in ('admin', 'superadmin') %}
+              {% if emp.role == 'subadmin' and session.get('role') != 'superadmin' %}
+              {% else %}
+              <form method="POST" action="/admin/employee/{{ emp.id }}/delete" class="inline-form"
+                    onsubmit="return confirm('Delete {{ emp.name }} and all their data?');">
+                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+              </form>
+              {% endif %}
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Edit User Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>Edit Member</h3>
+    <form id="editForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="name" id="editName" required>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" id="editEmail" placeholder="email@example.com">
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input type="text" name="phone" id="editPhone" placeholder="+91-...">
+      </div>
+      <div class="form-group">
+        <label>Department</label>
+        <input type="text" name="department" id="editDepartment" placeholder="e.g. Accounts, Development, Marketing">
+      </div>
+      <div class="form-group">
+        <label>Telegram Chat ID</label>
+        <input type="text" name="telegram_chat_id" id="editTelegram" placeholder="e.g. 123456789">
+      </div>
+      <div class="form-group">
+        <label>Shift</label>
+        <select name="shift_id" id="editShift" style="width: 100%;">
+          <option value="0">— No Shift —</option>
+          {% for s in shifts %}
+          <option value="{{ s.id }}">{{ s.name }} ({{ s.start_time }}–{{ s.end_time }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Birthday</label>
+        <input type="date" name="birthday" id="editBirthday">
+      </div>
+      <div class="form-group">
+        <label>Joining Date</label>
+        <input type="date" name="joining_date" id="editJoiningDate">
+      </div>
+      <div class="form-group">
+        <label>Wedding Anniversary</label>
+        <input type="date" name="wedding_anniversary" id="editWeddingAnniversary">
+      </div>
+      <div class="form-group">
+        <label>Hourly Rate</label>
+        <input type="number" name="hourly_rate" id="editHourlyRate" min="0" step="0.01" placeholder="0.00">
+      </div>
+      {% if session.get('role') == 'superadmin' %}
+      <div class="form-group">
+        <label>Role</label>
+        <select name="role" id="editRole" style="width: 100%;">
+          <option value="employee">Member</option>
+          <option value="sales">Sales</option>
+          <option value="accountant">Accountant</option>
+          <option value="subadmin">Team Lead</option>
+          <option value="manager">Manager</option>
+          <option value="admin">Admin</option>
+          <option value="superadmin">Owner</option>
+        </select>
+      </div>
+      {% endif %}
+      <div class="form-group">
+        <label>New Password (leave blank to keep current)</label>
+        <input type="text" name="new_password" placeholder="New password (optional)">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Import Excel Modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <h3>Import Team from Excel</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Upload a .xlsx file with columns: <b>name, username, password, role, telegram_chat_id, email, phone, department</b><br>
+      Existing usernames will be skipped. If password is empty, defaults to username+123.
+    </p>
+    <form method="POST" action="/admin/import-employees" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Excel File (.xlsx)</label>
+        <input type="file" name="excel_file" accept=".xlsx,.xls" required style="padding: 8px;">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('importModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Import Tasks Modal -->
+<div class="modal-overlay" id="taskImportModal">
+  <div class="modal">
+    <h3>Import Recurring Tasks from Excel</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Upload a .xlsx file with columns: <b>employee_username, title, description, frequency, frequency_day, frequency_month</b><br>
+      Frequency: daily, weekly, every-1 (monthly), every-2, every-3 (quarterly), every-6, every-12 (yearly).<br>
+      Day: For weekly 0=Mon..6=Sun. For monthly+ day of month 1-31. Start month: 1=Jan..12=Dec.
+    </p>
+    <form method="POST" action="/admin/import-tasks" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Excel File (.xlsx)</label>
+        <input type="file" name="excel_file" accept=".xlsx,.xls" required style="padding: 8px;">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('taskImportModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Import Tasks</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Change password modal -->
+<div class="modal-overlay" id="pwModal">
+  <div class="modal">
+    <h3>Change My Password</h3>
+    <form method="POST" action="/admin/change-password">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" name="new_password" placeholder="Min 4 characters" required minlength="4">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('pwModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditModal(empId, name, telegram, email, phone, department, role, birthday, joiningDate, weddingAnniversary, hourlyRate, shiftId) {
+  document.getElementById('editForm').action = '/admin/employee/' + empId + '/edit';
+  document.getElementById('editName').value = name;
+  document.getElementById('editTelegram').value = telegram;
+  document.getElementById('editEmail').value = email || '';
+  document.getElementById('editPhone').value = phone || '';
+  document.getElementById('editDepartment').value = department || '';
+  document.getElementById('editBirthday').value = birthday || '';
+  document.getElementById('editJoiningDate').value = joiningDate || '';
+  document.getElementById('editWeddingAnniversary').value = weddingAnniversary || '';
+  var hr = document.getElementById('editHourlyRate');
+  if (hr) hr.value = hourlyRate || 0;
+  var shiftSelect = document.getElementById('editShift');
+  if (shiftSelect) shiftSelect.value = shiftId || 0;
+  var roleSelect = document.getElementById('editRole');
+  if (roleSelect) roleSelect.value = role;
+  document.getElementById('editModal').classList.add('active');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('active'); });
+});
+</script>
+{% endblock %}

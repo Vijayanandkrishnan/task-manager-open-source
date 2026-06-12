@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Scheduled Reports - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <div>
+    <a href="/reports" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; Reports</a>
+    <h1 style="margin-top: 4px;">Scheduled Reports</h1>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Add Schedule</h2>
+  <form method="POST" action="/reports/schedules/save">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-row" style="gap: 8px; margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Project</label>
+        <select name="project_id" required>
+          {% for p in projects %}
+          <option value="{{ p.id }}">{{ p.name }}{% if p.client_name %} ({{ p.client_name }}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group grow">
+        <label>Frequency</label>
+        <select name="frequency" id="freqSel" onchange="toggleDay()">
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Bi-Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      <div class="form-group" style="min-width: 140px;">
+        <label>Day</label>
+        <input type="number" name="frequency_day" id="freqDay" value="1" min="0" max="31" title="Weekly/Biweekly: 0=Mon..6=Sun. Monthly: day 1-28">
+      </div>
+    </div>
+    <div class="form-row" style="gap: 8px; margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>To Emails (comma-separated)</label>
+        <input type="text" name="to_emails" placeholder="client@example.com, manager@example.com" required>
+      </div>
+      <div class="form-group grow">
+        <label>CC Emails (optional)</label>
+        <input type="text" name="cc_emails" placeholder="cc@example.com">
+      </div>
+    </div>
+    <div class="form-row" style="gap: 8px; margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Subject Template</label>
+        <input type="text" name="subject" placeholder="Weekly Report: {project} ({from} to {to})" value="Project Report: {project} ({from} to {to})">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom: 8px;">
+      <label>Default Summary (optional)</label>
+      <textarea name="summary" rows="3" placeholder="This report covers work completed during the reporting period..."></textarea>
+    </div>
+    <div class="form-row" style="gap: 16px; margin-bottom: 8px;">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+        <input type="checkbox" name="include_branding" checked style="width:auto;"> Include branding
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+        <input type="checkbox" name="attach_pdf" checked style="width:auto;"> Attach PDF
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:normal;">
+        <input type="checkbox" name="active" checked style="width:auto;"> Active
+      </label>
+    </div>
+    <button type="submit" class="btn btn-primary">+ Add Schedule</button>
+  </form>
+</div>
+
+{% if schedules %}
+<div class="card">
+  <h2>Existing Schedules ({{ schedules|length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Project</th>
+        <th>Frequency</th>
+        <th>Recipients</th>
+        <th>Last Run</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in schedules %}
+      <tr>
+        <td><strong>{{ s.project_name }}</strong>{% if s.client_name %}<div style="font-size:11px;color:var(--text-light);">{{ s.client_name }}</div>{% endif %}</td>
+        <td>
+          {{ s.frequency }}
+          {% if s.frequency == 'monthly' %}(day {{ s.frequency_day }}){% elif s.frequency in ('weekly','biweekly') %}({{ ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][s.frequency_day] }}){% endif %}
+        </td>
+        <td style="font-size:12px;">{{ s.to_emails }}{% if s.cc_emails %}<div style="color:var(--text-light);">cc: {{ s.cc_emails }}</div>{% endif %}</td>
+        <td style="font-size:12px;">{{ s.last_run_at or '—' }}</td>
+        <td>{% if s.active %}<span class="badge badge-done">Active</span>{% else %}<span class="badge">Paused</span>{% endif %}</td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <form method="POST" action="/reports/schedules/{{ s.id }}/run" class="inline-form" onsubmit="return confirm('Send this report now?');">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline">Run Now</button>
+            </form>
+            <form method="POST" action="/reports/schedules/{{ s.id }}/toggle" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline">{% if s.active %}Pause{% else %}Resume{% endif %}</button>
+            </form>
+            <form method="POST" action="/reports/schedules/{{ s.id }}/delete" class="inline-form" onsubmit="return confirm('Delete this schedule?');">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if log %}
+<div class="card">
+  <h2>Recent Send Log</h2>
+  <table>
+    <thead><tr><th>Time</th><th>Project</th><th>Recipients</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for r in log %}
+      <tr>
+        <td style="font-size:12px;">{{ r.sent_at }}</td>
+        <td>{{ r.project_name }}</td>
+        <td style="font-size:12px;">{{ r.to_emails }}</td>
+        <td>{% if r.status == 'ok' %}<span class="badge badge-done">OK</span>{% else %}<span class="badge badge-oneoff" title="{{ r.error }}">Failed</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleDay() {
+  var f = document.getElementById('freqSel').value;
+  var d = document.getElementById('freqDay');
+  if (f === 'monthly') { d.min = 1; d.max = 28; if (d.value > 28) d.value = 1; }
+  else { d.min = 0; d.max = 6; if (d.value > 6) d.value = 1; }
+}
+toggleDay();
+</script>
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Standards Guide - Task Manager{% endblock %}
+{% block content %}
+<div style="max-width: 860px; margin: 0 auto;">
+  <h1 style="margin-bottom: 4px;">Standards Guide</h1>
+  <p style="color: var(--text-light); margin-bottom: 24px;">Follow these conventions when adding tasks, projects, clients, and other data. Consistency helps everyone.</p>
+
+  <!-- Task Naming -->
+  <div class="card">
+    <h2>Task Names</h2>
+    <p style="color: var(--text-light); margin-bottom: 12px;">Start with a <strong>verb</strong>, be specific enough that someone else can do it.</p>
+    <table>
+      <thead><tr><th style="width:50%;">Good</th><th style="width:50%;">Avoid</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Create Blog for Cross Posting - Offpage - LEC</strong></td><td><span style="color:var(--danger);">Blog</span> &mdash; too vague</td></tr>
+        <tr><td><strong>Update SEO Meta Tags - Onpage - Acme</strong></td><td><span style="color:var(--danger);">SEO update stuff</span> &mdash; no filler words</td></tr>
+        <tr><td><strong>Send Monthly Analytics Report - Reporting - TechFlow</strong></td><td><span style="color:var(--danger);">Report</span> &mdash; says nothing</td></tr>
+        <tr><td><strong>Design Social Media Creatives - SMM - GlobalTrade</strong></td><td><span style="color:var(--danger);">Social media design work to be done</span> &mdash; wordy</td></tr>
+        <tr><td><strong>Upload social media posts</strong></td><td><span style="color:var(--danger);">SM</span> &mdash; abbreviations confuse</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top: 14px; padding: 12px 14px; background: var(--bg); border-radius: var(--radius); font-size: 13px;">
+      <strong>Rules:</strong>
+      <ol style="margin: 6px 0 0 18px; line-height: 1.8;">
+        <li>Start with a verb: Review, Update, Send, Prepare, Check, Submit, Upload, Follow up, Reconcile, Process</li>
+        <li>Be specific &mdash; if you read it 6 months later, would you know what to do?</li>
+        <li>No ALL CAPS or special characters</li>
+        <li>Include the <em>what</em>, not the <em>how</em>: "Prepare monthly MIS report" not "Open Excel and fill data and email"</li>
+        <li>Don't include frequency in the name &mdash; the system tracks that automatically</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Task Descriptions -->
+  <div class="card">
+    <h2>Task Descriptions</h2>
+    <p style="color: var(--text-light); margin-bottom: 12px;">Optional but valuable. Write it so a new team member can do the task without asking questions.</p>
+    <table>
+      <thead><tr><th>Task Type</th><th>What to Write</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Recurring</td><td>Steps or link to SOP</td><td>Draft &gt; Review &gt; Publish on WordPress</td></tr>
+        <tr><td>One-Time</td><td>Context and deadline</td><td>Must go live by Friday</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Project Naming -->
+  <div class="card">
+    <h2>Project Names</h2>
+    <p style="color: var(--text-light); margin-bottom: 12px;">One project = one client retainer. Tasks inside handle the service-level detail.</p>
+    <table>
+      <thead><tr><th style="width:50%;">Good</th><th style="width:50%;">Avoid</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Acme &mdash; Digital Marketing</strong></td><td><span style="color:var(--danger);">acme website project thing</span></td></tr>
+        <tr><td><strong>TechFlow &mdash; Monthly Bookkeeping</strong></td><td><span style="color:var(--danger);">Bookkeeping</span> &mdash; which client?</td></tr>
+        <tr><td><strong>Dr. Sharma &mdash; GST Compliance</strong></td><td><span style="color:var(--danger);">GT GST</span> &mdash; unreadable</td></tr>
+        <tr><td><strong>Internal &mdash; Office Operations</strong></td><td><span style="color:var(--danger);">Office stuff</span></td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top: 14px; padding: 12px 14px; background: var(--bg); border-radius: var(--radius); font-size: 13px;">
+      <strong>Rules:</strong>
+      <ol style="margin: 6px 0 0 18px; line-height: 1.8;">
+        <li>Format: <code>Client Name &mdash; Retainer Scope</code></li>
+        <li>Use title case: "Acme &mdash; Digital Marketing" not "acme - digital marketing"</li>
+        <li>For internal work, prefix with "Internal &mdash;"</li>
+        <li>Keep under 50 characters &mdash; it shows in dropdowns</li>
+        <li>Only create multiple projects for the same client if they have separate retainer contracts</li>
+      </ol>
+    </div>
+    <div style="margin-top: 12px; padding: 12px 14px; background: var(--accent-soft); border-radius: var(--r); font-size: 13px; border-left: 3px solid var(--accent);">
+      <strong>Structure:</strong> Project = client engagement. Tasks = the actual work inside it.<br>
+      <code style="font-size: 12px; display: block; margin-top: 8px; line-height: 1.7;">
+        Acme &mdash; Digital Marketing<br>
+        &nbsp;&nbsp;Recurring: Create Blog for Cross Posting - Offpage (weekly)<br>
+        &nbsp;&nbsp;Recurring: Design Social Media Creatives - SMM (daily)<br>
+        &nbsp;&nbsp;Recurring: Send Monthly Analytics Report - Reporting (monthly)<br>
+        &nbsp;&nbsp;One-Time: Setup Landing Page - Website
+      </code>
+    </div>
+  </div>
+
+  <!-- Client Naming -->
+  <div class="card">
+    <h2>Client Names</h2>
+    <p style="color: var(--text-light); margin-bottom: 12px;">Use the full registered or trading name. Contact person goes in its own field.</p>
+    <table>
+      <thead><tr><th style="width:50%;">Good</th><th style="width:50%;">Avoid</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Acme Industries Pvt Ltd</strong></td><td><span style="color:var(--danger);">Acme</span> &mdash; there could be multiple</td></tr>
+        <tr><td><strong>TechFlow Solutions</strong></td><td><span style="color:var(--danger);">techflow</span> &mdash; no lowercase</td></tr>
+        <tr><td><strong>Dr. Sharma Clinic</strong></td><td><span style="color:var(--danger);">sharma</span> &mdash; not a company name</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top: 14px; padding: 12px 14px; background: var(--bg); border-radius: var(--radius); font-size: 13px;">
+      <strong>Rules:</strong>
+      <ol style="margin: 6px 0 0 18px; line-height: 1.8;">
+        <li>Full business name in title case</li>
+        <li>Include Pvt Ltd / LLP / LLC if applicable &mdash; helps with invoicing</li>
+        <li>No abbreviations unless the company itself uses one (IBM, HCL)</li>
+        <li>Notes field: add retainer terms, billing cycle, key contacts</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Time Logging -->
+  <div class="card">
+    <h2>Time Logging</h2>
+    <table>
+      <thead><tr><th>Guideline</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Log in minutes, be honest</td><td><strong>45 min</strong>, not "1 hour" if it was 45</td></tr>
+        <tr><td>Round to nearest 5 minutes</td><td>25, 30, 35 &mdash; not 27</td></tr>
+        <tr><td>Notes: what was done, not excuses</td><td><strong>Completed 3 of 5 entries, pending client docs</strong></td></tr>
+        <tr><td>Don't batch multiple tasks</td><td>Log each task completion separately</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Departments -->
+  <div class="card">
+    <h2>Standard Departments</h2>
+    <p style="color: var(--text-light); margin-bottom: 12px;">Use these exact names to keep reports consistent. Don't create variants.</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+      <span class="badge badge-done" style="font-size: 13px; padding: 4px 12px;">Accounts</span>
+      <span class="badge badge-done" style="font-size: 13px; padding: 4px 12px;">Development</span>
+      <span class="badge badge-done" style="font-size: 13px; padding: 4px 12px;">Design</span>
+      <span class="badge badge-done" style="font-size: 13px; padding: 4px 12px;">Marketing</span>
+      <span class="badge badge-done" style="font-size: 13px; padding: 4px 12px;">Operations</span>
+      <span class="badge badge-done" style="font-size: 13px; padding: 4px 12px;">Sales</span>
+      <span class="badge badge-done" style="font-size: 13px; padding: 4px 12px;">HR</span>
+    </div>
+    <table style="margin-top: 12px;">
+      <thead><tr><th>Use This</th><th>Not This</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Accounts</strong></td><td>Accounting, Finance, Accounts Dept</td></tr>
+        <tr><td><strong>Development</strong></td><td>Dev, IT, Tech, Engineering</td></tr>
+        <tr><td><strong>Design</strong></td><td>Creative, Graphics, UI/UX</td></tr>
+        <tr><td><strong>Marketing</strong></td><td>Mktg, Digital, Growth</td></tr>
+        <tr><td><strong>Operations</strong></td><td>Ops, Admin, Back Office</td></tr>
+        <tr><td><strong>Sales</strong></td><td>BD, Business Dev, Revenue</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Roles -->
+  <div class="card">
+    <h2>Roles</h2>
+    <table>
+      <thead><tr><th>Role</th><th>Who Gets It</th><th>Access</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-done">Member</span></td><td>Regular team member</td><td>Own tasks, kanban, projects</td></tr>
+        <tr><td><span class="badge badge-sales">Sales</span></td><td>Sales and enquiry owner</td><td>Leads, follow-ups, client conversion</td></tr>
+        <tr><td><span class="badge badge-subadmin">Team Lead</span></td><td>Senior managing a sub-team</td><td>Member + limited admin view</td></tr>
+        <tr><td><span class="badge accent"><span class="badge-dot"></span>Manager</span></td><td>Department or function head</td><td>Team Lead + calendar, attendance</td></tr>
+        <tr><td><span class="badge badge-admin">Admin</span></td><td>Operations / HR lead</td><td>Full access except system config</td></tr>
+        <tr><td><span class="badge badge-superadmin">Owner</span></td><td>Business owner / partner</td><td>Everything including settings and billing</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size: 13px; color: var(--text-light); margin-top: 10px;">Start everyone as Member. Promote only when they need the access, not as a title.</p>
+  </div>
+
+  <!-- General -->
+  <div class="card">
+    <h2>General Conventions</h2>
+    <table>
+      <thead><tr><th>Field</th><th>Convention</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Email</td><td>Lowercase, no spaces</td><td>john@company.com</td></tr>
+        <tr><td>Phone</td><td>Country code included</td><td>+91-9876543210</td></tr>
+        <tr><td>Notes / Comments</td><td>Full sentences, no text-speak</td><td>Client approved the revised quote</td></tr>
+        <tr><td>Amounts</td><td>Numbers only, no currency symbol</td><td>1500 (not Rs. 1,500)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

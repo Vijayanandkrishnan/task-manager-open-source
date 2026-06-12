@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Holidays - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 28px;">
+  <div>
+    <h1>Holidays</h1>
+    <p class="page-sub">Days when no absentee report is sent.</p>
+  </div>
+  <a href="/admin" class="btn btn-outline btn-sm">Back to Team</a>
+</div>
+
+<!-- Weekly Off Days -->
+<div class="card">
+  <h2>Weekly Off Days</h2>
+  <p style="color: var(--ink-3); font-size: 13px; margin-bottom: 14px;">
+    Pick the days of the week your team is off. Absentee reports won't be sent on these days.
+  </p>
+  <form method="POST" action="/admin/holidays/weekly-off">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+      {% set day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] %}
+      {% for i in range(7) %}
+      <label style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; background: {% if i in off_days %}var(--accent-soft){% else %}var(--surface){% endif %}; color: {% if i in off_days %}var(--accent-ink){% else %}var(--ink){% endif %}; font-weight: 500; font-size: 13.5px;">
+        <input type="checkbox" name="weekly_off_days" value="{{ i }}" {% if i in off_days %}checked{% endif %} style="width: 16px; height: 16px; accent-color: var(--accent);">
+        {{ day_names[i] }}
+      </label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-primary">Save Off Days</button>
+  </form>
+</div>
+
+<!-- Holidays List -->
+<div class="card">
+  <div class="flex-between" style="margin-bottom: 14px;">
+    <h2 style="margin: 0;">Specific Holidays</h2>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn btn-sm btn-outline" onclick="document.getElementById('importModal').classList.add('active')">Import Excel</button>
+      <a href="/admin/holidays/import-template" class="btn btn-sm btn-outline">Template</a>
+    </div>
+  </div>
+
+  <!-- Add new holiday -->
+  <form method="POST" action="/admin/holidays/add" style="margin-bottom: 18px;">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-row" style="align-items: flex-end;">
+      <div class="form-group grow" style="margin-bottom: 0;">
+        <label>Date</label>
+        <input type="date" name="holiday_date" required>
+      </div>
+      <div class="form-group grow" style="margin-bottom: 0; flex: 2;">
+        <label>Holiday Name</label>
+        <input type="text" name="name" placeholder="e.g. Diwali, Independence Day" required>
+      </div>
+      <button type="submit" class="btn btn-primary">+ Add Holiday</button>
+    </div>
+  </form>
+
+  {% if holidays %}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Day</th>
+        <th>Name</th>
+        <th style="width: 80px;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in holidays %}
+      <tr>
+        <td style="font-weight: 500;">{{ h.holiday_date }}</td>
+        <td style="color: var(--ink-3);">
+          {% set day_names = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+          {% set parts = h.holiday_date.split('-') %}
+          {% if parts|length == 3 %}
+            {% set y, m, d = parts[0]|int, parts[1]|int, parts[2]|int %}
+            {# Calculate weekday (0=Mon..6=Sun) using Zeller's-style trick: rely on simple display #}
+            <span style="font-size: 13px;">—</span>
+          {% endif %}
+        </td>
+        <td>{{ h.name }}</td>
+        <td>
+          <form method="POST" action="/admin/holidays/{{ h.id }}/delete" class="inline-form" onsubmit="return confirm('Remove holiday {{ h.name }}?');">
+            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+            <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align: center; padding: 28px 16px; color: var(--ink-3);">
+    No holidays added yet. Use the form above to add one.
+  </div>
+  {% endif %}
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <h3>Import Holidays from Excel</h3>
+    <p style="font-size: 13px; color: var(--ink-3); margin-bottom: 12px;">
+      Columns: <b>holiday_date, name</b>. Date format: YYYY-MM-DD. Duplicates are skipped.
+    </p>
+    <form method="POST" action="/admin/holidays/import" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group">
+        <input type="file" name="excel_file" accept=".xlsx,.xls" required>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('importModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('active'); });
+});
+</script>
+{% endblock %}

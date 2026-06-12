@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Projects - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Projects</h1>
+  <div style="display: flex; gap: 8px;">
+    {% if has_perm('import_projects') %}
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('projectImportModal').classList.add('active')">Import Excel</button>
+    <a href="/admin/project-template" class="btn btn-sm btn-outline">Template</a>
+    {% endif %}
+    {% if has_perm('create_project') %}
+    <button class="btn btn-primary" onclick="document.getElementById('addProjectModal').classList.add('active')">+ Add Project</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ projects|length }}</div>
+    <div class="stat-label">Projects</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ projects|selectattr('status', 'equalto', 'active')|list|length }}</div>
+    <div class="stat-label">Active</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ projects|selectattr('status', 'equalto', 'on-hold')|list|length }}</div>
+    <div class="stat-label">On Hold</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ projects|selectattr('status', 'equalto', 'completed')|list|length }}</div>
+    <div class="stat-label">Completed</div>
+  </div>
+</div>
+
+{% if projects %}
+  {% set ns = namespace(current_client='__INIT__') %}
+  {% for p in projects %}
+    {% set group_name = p.client_name if p.client_name else 'No Client' %}
+    {% if group_name != ns.current_client %}
+      {% if ns.current_client != '__INIT__' %}
+        </tbody></table></div>
+      {% endif %}
+      {% set ns.current_client = group_name %}
+      <div class="card">
+        <h2 style="margin-bottom: 12px;">{{ group_name }}</h2>
+        <table>
+          <thead>
+            <tr><th>Project</th><th>Services</th><th>Description</th><th>Links / Files</th><th>Status</th>
+            {% if has_perm('edit_project') or has_perm('delete_project') %}<th>Actions</th>{% endif %}</tr>
+          </thead>
+          <tbody>
+    {% endif %}
+    <tr>
+      <td style="font-weight: 600;">{{ p.name }}</td>
+      <td style="font-size: 13px;">{{ p.services or '—' }}</td>
+      <td style="font-size: 13px; color: var(--text-light); max-width: 200px;">{{ p.description or '—' }}</td>
+      <td style="font-size: 12px;">
+        {% for link in (p.project_links or '[]') | from_json %}
+          <div style="margin-bottom: 2px;">
+            <a href="{{ link.url }}" target="_blank" style="color: var(--primary);">{{ link.title }}</a>
+            {% if has_perm('manage_project_links') %}
+            <form method="POST" action="/projects/{{ p.id }}/links/{{ loop.index0 }}/delete" class="inline-form" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:11px;padding:0 2px;" title="Remove" onclick="return confirm('Remove this link?');">&times;</button>
+            </form>
+            {% endif %}
+          </div>
+        {% endfor %}
+        {% if has_perm('manage_project_links') %}
+        <button class="btn btn-sm btn-outline" style="font-size:11px;padding:2px 6px;margin-top:2px;" onclick="openAddLink({{ p.id }}, '{{ p.name|e }}')">+ Link</button>
+        {% endif %}
+      </td>
+      <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+      {% if has_perm('edit_project') or has_perm('delete_project') %}
+      <td>
+        <div style="display: flex; gap: 4px;">
+          {% if has_perm('edit_project') %}
+          <button class="btn btn-sm btn-outline" onclick="openEditProject({{ p.id }}, {{ p.client_id or 0 }}, '{{ p.name|e }}', '{{ p.description|e }}', '{{ p.services|e }}', '{{ p.status }}')">Edit</button>
+          {% endif %}
+          {% if has_perm('delete_project') %}
+          <form method="POST" action="/projects/{{ p.id }}/delete" class="inline-form"
+                onsubmit="return confirm('Delete project {{ p.name }}?');">
+            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+            <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+          </form>
+          {% endif %}
+        </div>
+      </td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+  {% if ns.current_client != '__INIT__' %}
+    </tbody></table></div>
+  {% endif %}
+{% else %}
+<div class="card" style="text-align: center; color: var(--text-light); padding: 40px;">
+  No projects yet.{% if has_perm('create_project') %} Add your first project above.{% endif %}
+</div>
+{% endif %}
+
+{% if has_perm('create_project') or has_perm('edit_project') or has_perm('manage_project_links') %}
+<!-- Add Project Modal -->
+<div class="modal-overlay" id="addProjectModal">
+  <div class="modal">
+    <h3>Add New Project</h3>
+    <form method="POST" action="/projects/add">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group"><label>Client (optional)</label>
+        <select name="client_id">
+          <option value="0">— No Client —</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group"><label>Project Name *</label>
+        <input type="text" name="name" required placeholder="e.g. Acme — Digital Marketing"></div>
+      <div class="form-group"><label>Services (what we do for this client)</label>
+        <textarea name="services" rows="3" placeholder="e.g. SEO, Social Media, Web Development (comma-separated)"></textarea></div>
+      <div class="form-group"><label>Description</label>
+        <textarea name="description" rows="2" placeholder="Monthly retainer scope or deliverables summary"></textarea></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addProjectModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Project</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div class="modal-overlay" id="editProjectModal">
+  <div class="modal">
+    <h3>Edit Project</h3>
+    <form id="editProjectForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group"><label>Client (optional)</label>
+        <select name="client_id" id="epClient">
+          <option value="0">— No Client —</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group"><label>Project Name *</label>
+        <input type="text" name="name" id="epName" required></div>
+      <div class="form-group"><label>Services</label>
+        <textarea name="services" id="epServices" rows="3"></textarea></div>
+      <div class="form-group"><label>Description</label>
+        <textarea name="description" id="epDesc" rows="2"></textarea></div>
+      <div class="form-group"><label>Status</label>
+        <select name="status" id="epStatus">
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="on-hold">On Hold</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editProjectModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Link Modal -->
+<div class="modal-overlay" id="addLinkModal">
+  <div class="modal">
+    <h3>Add Link to <span id="linkProjectName"></span></h3>
+    <form id="addLinkForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group"><label>Link Title *</label>
+        <input type="text" name="link_title" required placeholder="e.g. Google Drive, Trello Board, SOPs"></div>
+      <div class="form-group"><label>URL *</label>
+        <input type="url" name="link_url" required placeholder="https://..."></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addLinkModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Link</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- Project Import Modal -->
+<div class="modal-overlay" id="projectImportModal">
+  <div class="modal">
+    <h3>Import Projects from Excel</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Columns: <b>client_name (optional), project_name, description, services</b>. Client must exist if specified.
+    </p>
+    <form method="POST" action="/admin/import-projects" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <input type="file" name="excel_file" accept=".xlsx,.xls" required style="padding: 8px;">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('projectImportModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditProject(id, clientId, name, desc, services, status) {
+  document.getElementById('editProjectForm').action = '/projects/' + id + '/edit';
+  document.getElementById('epClient').value = clientId;
+  document.getElementById('epName').value = name;
+  document.getElementById('epDesc').value = desc;
+  document.getElementById('epServices').value = services;
+  document.getElementById('epStatus').value = status;
+  document.getElementById('editProjectModal').classList.add('active');
+}
+function openAddLink(projectId, projectName) {
+  document.getElementById('addLinkForm').action = '/projects/' + projectId + '/links/add';
+  document.getElementById('linkProjectName').textContent = projectName;
+  document.getElementById('addLinkModal').classList.add('active');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('active'); });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}{{ employee.name }} - Admin View{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <div>
+    <a href="/admin" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; All Employees</a>
+    <h1 style="margin-top: 4px;">{{ employee.name }}'s Tasks</h1>
+  </div>
+  <div style="font-size: 13px; color: var(--text-light);">Today: {{ today }}</div>
+</div>
+
+<div class="grid-2">
+  <!-- RECURRING TASKS -->
+  <div>
+    <div class="card">
+      <div class="flex-between" style="margin-bottom: 12px;">
+        <h2>Recurring Tasks</h2>
+        <span class="badge badge-recurring">{{ recurring|length }} tasks</span>
+      </div>
+
+      {% for task in recurring %}
+      <div class="task-item {% if task.id in today_completions %}done{% endif %}">
+        {% if task.id in today_completions %}
+          <div class="check-circle checked">&#10003;</div>
+          <div style="flex: 1;">
+            <div class="task-title" style="text-decoration: line-through;">{{ task.title }}</div>
+            {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+            <div style="font-size: 12px; color: var(--success); margin-top: 4px;">
+              Done &mdash; {{ today_completions[task.id].time_minutes }} min
+              {% if today_completions[task.id].notes %}&mdash; {{ today_completions[task.id].notes }}{% endif %}
+            </div>
+          </div>
+        {% else %}
+          <div class="check-circle"></div>
+          <div style="flex: 1;">
+            <div class="task-title">{{ task.title }}</div>
+            {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+            <div style="font-size: 11px; color: var(--warning); margin-top: 2px;">Not completed today</div>
+          </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      {% if not recurring %}
+      <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 14px;">
+        No recurring tasks yet.
+      </div>
+      {% endif %}
+
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <h3>Add Recurring Task for {{ employee.name }}</h3>
+        <form method="POST" action="/admin/employee/{{ employee.id }}/recurring/add">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+          <div class="form-group" style="margin-bottom: 8px;">
+            <input type="text" name="title" placeholder="e.g. Create Blog for Cross Posting - Offpage - LEC" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 8px;">
+            <textarea name="description" placeholder="Steps or context, e.g. Draft > Review > Publish on WordPress" rows="2"></textarea>
+          </div>
+          <div class="form-row" style="margin-bottom: 8px; gap: 8px;">
+            <div class="form-group grow">
+              <label style="font-size: 12px;">Frequency</label>
+              <select name="frequency" onchange="toggleFreqFields(this)">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="every-1">Monthly</option>
+                <option value="every-2">Every 2 months</option>
+                <option value="every-3">Quarterly (3 months)</option>
+                <option value="every-4">Every 4 months</option>
+                <option value="every-5">Every 5 months</option>
+                <option value="every-6">Every 6 Months</option>
+                <option value="every-7">Every 7 months</option>
+                <option value="every-8">Every 8 months</option>
+                <option value="every-9">Every 9 months</option>
+                <option value="every-10">Every 10 months</option>
+                <option value="every-11">Every 11 months</option>
+                <option value="every-12">Yearly (12 months)</option>
+              </select>
+            </div>
+            <div class="form-group grow freq-weekday-field" style="display:none;">
+              <label style="font-size: 12px;">On these days <span style="font-weight:400;color:var(--ink-4);">· select one or more</span></label>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                {% for d_idx, d_name in [(0,'M'),(1,'T'),(2,'W'),(3,'T'),(4,'F'),(5,'S'),(6,'S')] %}
+                <label class="day-pill">
+                  <input type="checkbox" name="frequency_days_weekly" value="{{ d_idx }}">
+                  <span>{{ d_name }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="form-group grow freq-monthday-field" style="display:none;">
+              <label style="font-size: 12px;">Day(s) of Month <span style="font-weight:400;color:var(--ink-4);">· separate multiple with commas</span></label>
+              <input type="text" name="frequency_days_monthly" value="1" placeholder="e.g. 1 or 1, 15" pattern="[0-9, ]+">
+            </div>
+            <div class="form-group freq-time-field">
+              <label style="font-size: 12px;">Time</label>
+              <input type="time" name="scheduled_time" value="09:00">
+            </div>
+            <div class="form-group grow freq-month-field" style="display:none;">
+              <label style="font-size: 12px;">Start Month</label>
+              <select name="frequency_month">
+                <option value="1">January</option><option value="2">February</option>
+                <option value="3">March</option><option value="4">April</option>
+                <option value="5">May</option><option value="6">June</option>
+                <option value="7">July</option><option value="8">August</option>
+                <option value="9">September</option><option value="10">October</option>
+                <option value="11">November</option><option value="12">December</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row" style="gap:8px; margin-bottom:8px;">
+            <div class="form-group grow">
+              <label style="font-size: 12px;">Project</label>
+              <select name="project_id" required>
+                <option value="">Select project</option>
+                {% for p in active_projects %}<option value="{{ p.id }}">{{ p.name }}{% if p.client_name %} ({{ p.client_name }}){% endif %}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">+ Add Recurring Task</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ONE-OFF TASKS -->
+  <div>
+    <div class="card">
+      <div class="flex-between" style="margin-bottom: 12px;">
+        <h2>One-Time Tasks</h2>
+        <span class="badge badge-oneoff">
+          {{ oneoff|selectattr('completed', 'equalto', 0)|list|length }} pending
+        </span>
+      </div>
+
+      {% for task in oneoff %}
+      <div class="task-item {% if task.completed %}done{% endif %}">
+        {% if task.completed %}
+          <div class="check-circle checked">&#10003;</div>
+          <div style="flex: 1;">
+            <div class="task-title" style="text-decoration: line-through;">{{ task.title }}</div>
+            {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+            <div style="font-size: 12px; color: var(--success); margin-top: 4px;">
+              Done on {{ task.completion_date }} &mdash; {{ task.time_minutes }} min
+              {% if task.notes %}&mdash; {{ task.notes }}{% endif %}
+            </div>
+          </div>
+        {% else %}
+          <div class="check-circle"></div>
+          <div style="flex: 1;">
+            <div class="task-title">{{ task.title }}</div>
+            {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+            <div style="font-size: 11px; color: var(--text-light); margin-top: 2px;">Created {{ task.created_at[:10] }}</div>
+          </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      {% if not oneoff %}
+      <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 14px;">
+        No one-time tasks yet.
+      </div>
+      {% endif %}
+
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <h3>Add One-Time Task for {{ employee.name }}</h3>
+        <form method="POST" action="/admin/employee/{{ employee.id }}/oneoff/add">
+          <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+          <div class="form-group" style="margin-bottom: 8px;">
+            <input type="text" name="title" placeholder="e.g. Setup Landing Page - Website - ClientName" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 8px;">
+            <textarea name="description" placeholder="Context or deadline, e.g. Must go live by Friday" rows="2"></textarea>
+          </div>
+          <div class="form-row" style="gap:8px; margin-bottom:8px;">
+            <div class="form-group grow">
+              <label style="font-size: 12px;">Project</label>
+              <select name="project_id" required>
+                <option value="">Select project</option>
+                {% for p in active_projects %}<option value="{{ p.id }}">{{ p.name }}{% if p.client_name %} ({{ p.client_name }}){% endif %}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">+ Add One-Time Task</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BACKLOG TASKS -->
+<div class="card" style="margin-top: 20px;">
+  <div class="flex-between" style="margin-bottom: 12px;">
+    <h2>Backlog</h2>
+    <span class="badge slate">{{ backlog|length }} items</span>
+  </div>
+
+  {% for task in backlog %}
+  <div class="task-item">
+    <div style="flex: 1;">
+      <div class="task-title">{{ task.title }}</div>
+      {% if task.description %}<div class="task-desc">{{ task.description }}</div>{% endif %}
+      {% if task.drive_link %}<div style="font-size: 12px; margin-top: 2px;"><a href="{{ task.drive_link }}" target="_blank" style="color: var(--primary);">Drive Link</a></div>{% endif %}
+      <div style="font-size: 11px; color: var(--text-light); margin-top: 2px;">
+        Added {{ task.created_at[:10] }}
+        {% if task.priority == 'high' %} &middot; <span style="color: var(--danger); font-weight: 600;">High Priority</span>
+        {% elif task.priority == 'low' %} &middot; <span style="color: var(--text-light);">Low Priority</span>
+        {% endif %}
+      </div>
+    </div>
+    <form method="POST" action="/admin/employee/{{ employee.id }}/backlog/{{ task.id }}/delete" class="inline-form"
+          onsubmit="return confirm('Delete this backlog task?');">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <button type="submit" class="btn btn-sm btn-outline" style="color: var(--danger);">&times;</button>
+    </form>
+  </div>
+  {% endfor %}
+
+  {% if not backlog %}
+  <div style="text-align: center; color: var(--text-light); padding: 16px; font-size: 14px;">
+    No backlog tasks.
+  </div>
+  {% endif %}
+
+  <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+    <h3>Add to Backlog for {{ employee.name }}</h3>
+    <form method="POST" action="/admin/employee/{{ employee.id }}/backlog/add">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-row" style="margin-bottom: 8px; gap: 8px;">
+        <div class="form-group grow">
+          <input type="text" name="title" placeholder="e.g. Research Competitor SEO Strategy - Offpage - Acme" required>
+        </div>
+        <div class="form-group" style="width: 120px;">
+          <select name="priority">
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom: 8px;">
+        <textarea name="description" placeholder="Context, notes, or reference links" rows="2"></textarea>
+      </div>
+      <div class="form-row" style="margin-bottom: 8px; gap: 8px;">
+        <div class="form-group grow">
+          <input type="text" name="drive_link" placeholder="Google Drive link (optional)">
+        </div>
+        <div class="form-group grow">
+          <select name="project_id">
+            <option value="0">— No Project —</option>
+            {% for p in active_projects %}<option value="{{ p.id }}">{{ p.name }}{% if p.client_name %} ({{ p.client_name }}){% endif %}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary">Add to Backlog</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleFreqFields(sel) {
+  var val = sel.value;
+  var form = sel.closest('form');
+  var weekdayField = form.querySelector('.freq-weekday-field');
+  var monthdayField = form.querySelector('.freq-monthday-field');
+  var monthField = form.querySelector('.freq-month-field');
+  var timeField = form.querySelector('.freq-time-field');
+  if (val === 'daily') {
+    weekdayField.style.display='none'; monthdayField.style.display='none'; monthField.style.display='none';
+  } else if (val === 'weekly') {
+    weekdayField.style.display=''; monthdayField.style.display='none'; monthField.style.display='none';
+  } else {
+    weekdayField.style.display='none'; monthdayField.style.display=''; monthField.style.display='';
+  }
+  if (timeField) timeField.style.display='';
+}
+</script>
+{% endblock %}

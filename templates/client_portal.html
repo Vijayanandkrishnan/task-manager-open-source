@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invoice {{ invoice.invoice_number }} - {{ app_name }}</title>
+<style>
+  :root {
+    --primary: {{ primary_color or '#2563eb' }};
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--surface-2); color: #1e293b; line-height: 1.6;
+  }
+  .invoice-container {
+    max-width: 800px; margin: 0 auto; padding: 32px 24px;
+  }
+  .invoice-card {
+    background: #fff; border-radius: 12px; padding: 40px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+  }
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding-bottom: 24px; border-bottom: 2px solid #e2e8f0; margin-bottom: 24px;
+  }
+  .brand-name {
+    font-size: 24px; font-weight: 700; color: var(--primary);
+  }
+  .invoice-title {
+    text-align: right;
+  }
+  .invoice-title h1 {
+    font-size: 28px; font-weight: 700; color: #1e293b; margin-bottom: 4px;
+  }
+  .invoice-number {
+    font-size: 14px; color: var(--ink-3);
+  }
+  .details-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    margin-bottom: 32px;
+  }
+  .detail-section h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0;
+    color: var(--ink-3); margin-bottom: 8px; font-weight: 600;
+  }
+  .detail-section p {
+    font-size: 14px; margin-bottom: 2px;
+  }
+  .detail-section .value {
+    font-weight: 600;
+  }
+  .status-badge {
+    display: inline-block; padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+  }
+  .status-paid { background: var(--sage-soft); color: oklch(32% 0.14 160); }
+  .status-unpaid { background: var(--amber-soft); color: oklch(38% 0.15 65); }
+  .items-table {
+    width: 100%; border-collapse: collapse; margin-bottom: 24px;
+  }
+  .items-table thead th {
+    text-align: left; font-size: 11px; font-weight: 600; color: var(--ink-3);
+    padding: 10px 12px; border-bottom: 2px solid #e2e8f0;
+    text-transform: uppercase; letter-spacing: 0;
+  }
+  .items-table thead th:last-child,
+  .items-table tbody td:last-child {
+    text-align: right;
+  }
+  .items-table tbody td {
+    padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 14px;
+  }
+  .items-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .totals {
+    text-align: right; padding-top: 16px; border-top: 2px solid #e2e8f0;
+  }
+  .totals .row {
+    display: flex; justify-content: flex-end; gap: 24px;
+    padding: 4px 0; font-size: 14px;
+  }
+  .totals .row .label {
+    color: var(--ink-3); min-width: 120px; text-align: right;
+  }
+  .totals .row .amount {
+    min-width: 120px; text-align: right; font-weight: 600;
+  }
+  .totals .grand-total {
+    font-size: 22px; font-weight: 700; color: var(--primary);
+    padding-top: 8px; margin-top: 8px; border-top: 2px solid #e2e8f0;
+  }
+  .footer {
+    text-align: center; padding: 24px 0 8px; color: var(--ink-4); font-size: 12px;
+  }
+
+  @media print {
+    body { background: #fff; }
+    .invoice-container { padding: 0; }
+    .invoice-card { box-shadow: none; padding: 20px; }
+    .footer { position: fixed; bottom: 0; left: 0; right: 0; }
+  }
+  @media (max-width: 600px) {
+    .header { flex-direction: column; gap: 12px; }
+    .invoice-title { text-align: left; }
+    .details-grid { grid-template-columns: 1fr; }
+    .invoice-card { padding: 24px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="invoice-container">
+  <div class="invoice-card">
+    <!-- Header -->
+    <div class="header">
+      <div>
+        <div class="brand-name">{{ app_name }}</div>
+        {% if app_logo_url %}
+          <img src="{{ app_logo_url }}" alt="{{ app_name }}" style="max-height: 40px; margin-top: 8px;">
+        {% endif %}
+      </div>
+      <div class="invoice-title">
+        <h1>INVOICE</h1>
+        <div class="invoice-number">{{ invoice.invoice_number }}</div>
+      </div>
+    </div>
+
+    <!-- Details -->
+    {% set currency = invoice.currency or 'INR' %}
+    {% set sym = currency_sym %}
+
+    <div class="details-grid">
+      <div class="detail-section">
+        <h3>Bill To</h3>
+        <p class="value">{{ invoice.client_name }}</p>
+        {% if invoice.contact_person %}<p>{{ invoice.contact_person }}</p>{% endif %}
+        {% if invoice.client_email %}<p>{{ invoice.client_email }}</p>{% endif %}
+        {% if invoice.client_address %}<p style="color: var(--ink-3);">{{ invoice.client_address }}</p>{% endif %}
+      </div>
+      <div class="detail-section" style="text-align: right;">
+        <h3>Invoice Details</h3>
+        <p>Date: <span class="value">{{ invoice.invoice_date }}</span></p>
+        {% if invoice.due_date %}
+        <p>Due Date: <span class="value">{{ invoice.due_date }}</span></p>
+        {% endif %}
+        <p style="margin-top: 8px;">
+          <span class="status-badge {% if invoice.status == 'paid' %}status-paid{% else %}status-unpaid{% endif %}">
+            {{ invoice.status }}
+          </span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Items Table -->
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Unit Price</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.description }}</td>
+          <td>{{ item.quantity }}</td>
+          <td>{{ sym }}{{ '%.2f'|format(item.unit_price) }}</td>
+          <td>{{ sym }}{{ '%.2f'|format(item.total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Totals -->
+    <div class="totals">
+      <div class="row">
+        <span class="label">Subtotal</span>
+        <span class="amount">{{ sym }}{{ '%.2f'|format(invoice.subtotal) }}</span>
+      </div>
+      {% if invoice.discount_percent and invoice.discount_percent > 0 %}
+      <div class="row">
+        <span class="label">Discount ({{ invoice.discount_percent }}%)</span>
+        <span class="amount">-{{ sym }}{{ '%.2f'|format(invoice.discount_amount) }}</span>
+      </div>
+      {% endif %}
+      <div class="row grand-total">
+        <span class="label">Total</span>
+        <span class="amount">{{ sym }}{{ '%.2f'|format(invoice.total) }} {{ currency }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Powered by {{ app_name }}
+  </div>
+</div>
+</body>
+</html>

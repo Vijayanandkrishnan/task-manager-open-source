@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Audit Trail - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Audit Trail</h1>
+  <form method="GET" action="/admin/log" class="form-row" style="gap: 8px;">
+    <select name="employee" onchange="this.form.submit()" style="width: auto;">
+      <option value="0">All Members</option>
+      {% for emp in employees %}
+      <option value="{{ emp.id }}" {% if emp_filter == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="action" onchange="this.form.submit()" style="width: auto;">
+      <option value="">All Actions</option>
+      <option value="created" {% if action_filter == 'created' %}selected{% endif %}>Created</option>
+      <option value="completed" {% if action_filter == 'completed' %}selected{% endif %}>Completed</option>
+      <option value="deleted" {% if action_filter == 'deleted' %}selected{% endif %}>Deleted</option>
+      <option value="uncompleted" {% if action_filter == 'uncompleted' %}selected{% endif %}>Uncompleted</option>
+      <option value="created (by admin)" {% if action_filter == 'created (by admin)' %}selected{% endif %}>Created by Admin</option>
+      <option value="added member" {% if action_filter == 'added member' %}selected{% endif %}>Added Member</option>
+      <option value="edited member" {% if action_filter == 'edited member' %}selected{% endif %}>Edited Member</option>
+      <option value="deleted member" {% if action_filter == 'deleted member' %}selected{% endif %}>Deleted Member</option>
+      <option value="updated settings" {% if action_filter == 'updated settings' %}selected{% endif %}>Updated Settings</option>
+    </select>
+  </form>
+</div>
+
+<div class="card">
+  {% if entries %}
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Employee</th>
+        <th>Action By</th>
+        <th>Action</th>
+        <th>Type</th>
+        <th>Task</th>
+        <th>Description</th>
+        <th>Date</th>
+        <th>Time (min)</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td style="font-size: 12px; color: var(--text-light); white-space: nowrap;">{{ e.created_at }}</td>
+        <td>{{ e.employee_name }}</td>
+        <td style="font-size: 13px;">
+          {% if e.actor_name and e.actor_name != e.employee_name %}
+            <span style="color: var(--primary); font-weight: 600;">{{ e.actor_name }}</span>
+            {% if e.actor_role %}<span style="font-size: 11px; color: var(--text-light);"> ({{ e.actor_role }})</span>{% endif %}
+          {% else %}
+            <span style="color: var(--text-light);">self</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge
+            {% if 'deleted' in e.action %}badge-deleted
+            {% elif 'completed' == e.action %}badge-done
+            {% elif 'created' in e.action %}badge-recurring
+            {% else %}badge-pending{% endif %}">
+            {{ e.action }}
+          </span>
+        </td>
+        <td><span class="badge {% if e.task_type == 'recurring' %}badge-recurring{% else %}badge-oneoff{% endif %}">{{ e.task_type }}</span></td>
+        <td style="font-weight: 600;">{{ e.task_title }}</td>
+        <td style="color: var(--text-light); font-size: 13px; max-width: 180px;">{{ e.task_description or '' }}</td>
+        <td>{{ e.completion_date or '' }}</td>
+        <td>{{ e.time_minutes or '' }}</td>
+        <td style="font-size: 13px;">{{ e.notes or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="text-align: center; color: var(--text-light); padding: 40px;">
+    No activity logged yet.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

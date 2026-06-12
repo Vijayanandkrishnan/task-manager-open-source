@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Calendar - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Calendar</h1>
+  <form method="GET" action="/admin/calendar" class="form-row" style="gap: 8px;">
+    <select name="employee" onchange="this.form.submit()" style="width: auto;">
+      <option value="0">All Employees</option>
+      {% for emp in employees %}
+      <option value="{{ emp.id }}" {% if emp_filter == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+      {% endfor %}
+    </select>
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+  </form>
+</div>
+
+<div class="card">
+  <div class="flex-between" style="margin-bottom: 16px;">
+    <a href="/admin/calendar?year={{ prev_year }}&month={{ prev_month }}&employee={{ emp_filter }}" class="btn btn-outline">&larr; Prev</a>
+    <h2 style="margin: 0;">{{ month_name }} {{ year }}</h2>
+    <a href="/admin/calendar?year={{ next_year }}&month={{ next_month }}&employee={{ emp_filter }}" class="btn btn-outline">Next &rarr;</a>
+  </div>
+
+  <div class="calendar-grid">
+    <div class="cal-header">Mon</div>
+    <div class="cal-header">Tue</div>
+    <div class="cal-header">Wed</div>
+    <div class="cal-header">Thu</div>
+    <div class="cal-header">Fri</div>
+    <div class="cal-header">Sat</div>
+    <div class="cal-header">Sun</div>
+
+    {% for week in cal %}
+      {% for day in week %}
+        {% if day == 0 %}
+          <div class="cal-day empty"></div>
+        {% else %}
+          {% set day_str = '%04d-%02d-%02d'|format(year, month, day) %}
+          <a href="/admin/daily/{{ day_str }}?employee={{ emp_filter }}"
+             class="cal-day {% if day_str == today %}today{% endif %}"
+             style="text-decoration: none; color: inherit;">
+            <div class="day-num">{{ day }}</div>
+            {% if day_str in day_tasks %}
+              <div class="day-info">{{ day_tasks[day_str]|length }} tasks</div>
+              <div class="day-info">{{ day_minutes.get(day_str, 0)|round(0)|int }} min</div>
+              {% set max_bar = 480 %}
+              {% set bar_pct = [day_minutes.get(day_str, 0) / max_bar * 100, 100]|min %}
+              <div class="day-bar" style="width: {{ bar_pct|int }}%;"></div>
+            {% endif %}
+          </a>
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

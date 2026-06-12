@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Manage Currencies - {{ app_name }}{% endblock %}
+{% block content %}
+<div style="margin-bottom: 20px;">
+  <a href="/settings" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; Back to Settings</a>
+  <div class="flex-between" style="margin-top: 4px;">
+    <h1>Manage Currencies</h1>
+    <form method="POST" action="/settings/currencies/refresh-rates" style="margin: 0;">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <button type="submit" class="btn btn-primary btn-sm">Refresh Live Rates</button>
+    </form>
+  </div>
+  <p style="font-size: 13px; color: var(--text-light); margin-top: 4px;">
+    Exchange rates sourced from the European Central Bank (ECB) via frankfurter.app. Rates are relative to your default currency.
+  </p>
+</div>
+
+<!-- Add Currency -->
+<div class="card">
+  <h2>Add Currency</h2>
+  <form method="POST" action="/settings/currencies/add">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-row" style="margin-bottom: 8px;">
+      <div class="form-group grow">
+        <label>Code (3 letters)</label>
+        <input type="text" name="code" placeholder="e.g. EUR" maxlength="5" required style="text-transform: uppercase;">
+      </div>
+      <div class="form-group grow">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="e.g. Euro" required>
+      </div>
+      <div class="form-group grow">
+        <label>Symbol</label>
+        <input type="text" name="symbol" placeholder="e.g. €" maxlength="5" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="align-self: flex-end;">+ Add</button>
+    </div>
+  </form>
+</div>
+
+<!-- Currency List -->
+<div class="card">
+  <h2>Currencies ({{ currencies|length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Name</th>
+        <th>Symbol</th>
+        <th>Exchange Rate</th>
+        <th>Default</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cur in currencies %}
+      <tr>
+        <td><strong>{{ cur.code }}</strong></td>
+        <td>{{ cur.name }}</td>
+        <td style="font-size: 18px;">{{ cur.symbol }}</td>
+        <td>
+          {% if cur.is_default %}
+            <span style="font-weight: 600;">1.0000</span>
+            <span style="font-size: 11px; color: var(--text-light);">(base)</span>
+          {% else %}
+            <form method="POST" action="/settings/currencies/{{ cur.id }}/rate" class="inline-form" style="display: flex; gap: 4px; align-items: center;">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <input type="number" name="rate" value="{{ '%.4f'|format(cur.exchange_rate or 0) }}" step="0.0001" min="0.0001" style="width: 100px; font-size: 13px; padding: 4px 6px;">
+              <button type="submit" class="btn btn-sm btn-outline" title="Save rate">Save</button>
+            </form>
+            {% if cur.rates_updated_at %}
+            <div style="font-size: 10px; color: var(--text-light); margin-top: 2px;">{{ cur.rates_updated_at }}</div>
+            {% endif %}
+          {% endif %}
+        </td>
+        <td>
+          {% if cur.is_default %}
+            <span class="badge badge-done">Default</span>
+          {% else %}
+            <form method="POST" action="/settings/currencies/{{ cur.id }}/default" class="inline-form">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <button type="submit" class="btn btn-sm btn-outline">Set Default</button>
+            </form>
+          {% endif %}
+        </td>
+        <td>
+          {% if not cur.is_default %}
+          <form method="POST" action="/settings/currencies/{{ cur.id }}/delete" class="inline-form"
+                onsubmit="return confirm('Delete {{ cur.code }}?');">
+            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+            <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+          </form>
+          {% else %}
+          <span style="color: var(--text-light); font-size: 12px;">Cannot delete default</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Conversion Helper -->
+<div class="card">
+  <h2>Quick Convert</h2>
+  <div class="form-row" style="gap: 8px; align-items: flex-end;">
+    <div class="form-group grow">
+      <label>Amount</label>
+      <input type="number" id="convAmount" value="1" step="0.01" min="0" onchange="doConvert()" oninput="doConvert()">
+    </div>
+    <div class="form-group grow">
+      <label>From</label>
+      <select id="convFrom" onchange="doConvert()">
+        {% for cur in currencies %}
+        <option value="{{ cur.exchange_rate or 1 }}" data-code="{{ cur.code }}" data-sym="{{ cur.symbol }}" {% if cur.is_default %}selected{% endif %}>{{ cur.code }} ({{ cur.symbol }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="font-size: 20px; padding-bottom: 8px;">&rarr;</div>
+    <div class="form-group grow">
+      <label>To</label>
+      <select id="convTo" onchange="doConvert()">
+        {% for cur in currencies %}
+        <option value="{{ cur.exchange_rate or 1 }}" data-code="{{ cur.code }}" data-sym="{{ cur.symbol }}" {% if not cur.is_default and loop.index == 2 %}selected{% endif %}>{{ cur.code }} ({{ cur.symbol }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group grow">
+      <label>Result</label>
+      <div id="convResult" style="padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 16px; font-weight: 700; min-height: 38px; display: flex; align-items: center;">—</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function doConvert() {
+  var amt = parseFloat(document.getElementById('convAmount').value) || 0;
+  var fromSel = document.getElementById('convFrom');
+  var toSel = document.getElementById('convTo');
+  var fromRate = parseFloat(fromSel.value) || 1;
+  var toRate = parseFloat(toSel.value) || 1;
+  var toSym = toSel.options[toSel.selectedIndex].getAttribute('data-sym');
+  // Convert: amount in FROM currency -> base -> TO currency
+  // fromRate = how many TO-base per 1 base. So 1 FROM = fromRate base units? No.
+  // Rates are: 1 default = X foreign. So foreign_rate = X.
+  // To convert FROM -> TO: amount / fromRate * toRate
+  // But default currency has rate 1.0.
+  // If from=INR(default,1.0), to=USD(rate=0.012): 1 INR = 0.012 USD -> result = amt * toRate / fromRate
+  // Actually: 1 base_currency = toRate of target. So 100 INR = 100 * 0.012 = 1.2 USD. That's correct.
+  // If from=USD(0.012), to=EUR(0.011): 1 USD in base = 1/0.012 = 83.33 INR. Then to EUR = 83.33 * 0.011 = 0.917 EUR
+  var result = amt * toRate / fromRate;
+  document.getElementById('convResult').textContent = toSym + ' ' + result.toFixed(2);
+}
+doConvert();
+</script>
+{% endblock %}

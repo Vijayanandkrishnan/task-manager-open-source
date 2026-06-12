@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% block title %}Kanban Board - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 16px;">
+  <h1 style="margin-bottom: 0;">Kanban Board</h1>
+  <span style="font-size: 13px; color: var(--text-light);">{{ today }}</span>
+</div>
+
+{% if session.get('role') in ['admin', 'superadmin', 'subadmin'] %}
+<form method="GET" action="/kanban" style="margin-bottom: 14px;">
+  <select name="employee_id" onchange="this.form.submit()"
+    style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px;
+           font-size: 13px; font-family: inherit; width: auto; min-width: 200px;
+           background: var(--card); color: var(--text); cursor: pointer;">
+    <option value="">All Team Members</option>
+    {% for emp in all_employees %}
+    <option value="{{ emp.id }}" {% if filter_emp == emp.id|string %}selected{% endif %}>{{ emp.name }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endif %}
+
+<style>
+  .kanban-board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  @media (max-width: 840px) {
+    .kanban-board { grid-template-columns: 1fr; }
+  }
+  .kanban-column {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .kanban-header {
+    padding: 10px 14px;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .kanban-header .count {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 20px;
+    background: rgba(0,0,0,.08);
+  }
+  /* Column top borders */
+  .kanban-col-todo { border-top: 3px solid var(--amber); }
+  .kanban-col-inprogress { border-top: 3px solid var(--accent); }
+  .kanban-col-done { border-top: 3px solid var(--sage); }
+  /* Header colors */
+  .kanban-col-todo .kanban-header { color: oklch(38% 0.15 65); }
+  .kanban-col-todo .kanban-header .count { background: var(--amber-soft); color: oklch(38% 0.15 65); }
+  .kanban-col-inprogress .kanban-header { color: var(--accent-ink); }
+  .kanban-col-inprogress .kanban-header .count { background: var(--line-soft); color: var(--accent-ink); }
+  .kanban-col-done .kanban-header { color: oklch(32% 0.14 160); }
+  .kanban-col-done .kanban-header .count { background: var(--sage-soft); color: oklch(32% 0.14 160); }
+  /* Scrollable body */
+  .kanban-body {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: calc(100vh - 240px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 80px;
+  }
+  .kanban-body::-webkit-scrollbar { width: 5px; }
+  .kanban-body::-webkit-scrollbar-track { background: transparent; }
+  .kanban-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .kanban-body::-webkit-scrollbar-thumb:hover { background: var(--text-light); }
+  /* Compact card */
+  .kanban-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: 10px;
+    padding: 10px 12px;
+    transition: box-shadow .15s, border-color .15s;
+    cursor: default;
+    min-width: 0;
+  }
+  .kanban-card:hover { border-color: var(--ink-4); box-shadow: var(--shadow-sm); }
+  /* Left border color per column */
+  .kanban-col-todo .kanban-card { border-left: 3px solid var(--amber); }
+  .kanban-col-inprogress .kanban-card { border-left: 3px solid var(--accent); }
+  .kanban-col-done .kanban-card { border-left: 3px solid var(--sage); }
+  /* Avatar circle */
+  .kanban-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+  /* Title */
+  .kanban-card-title {
+    font-size: 13px;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+  /* Type pill */
+  .kanban-type {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    line-height: 1.4;
+  }
+  .kanban-type-r { background: var(--accent-soft); color: var(--accent-ink); }
+  .kanban-type-o { background: var(--purple-soft); color: oklch(32% 0.18 290); }
+  /* Drive link icon */
+  .kanban-drive {
+    flex-shrink: 0;
+    font-size: 14px;
+    text-decoration: none;
+    line-height: 1;
+    opacity: .6;
+    transition: opacity .15s;
+  }
+  .kanban-drive:hover { opacity: 1; }
+  /* Empty state */
+  .kanban-empty {
+    text-align: center;
+    color: var(--text-light);
+    font-size: 12px;
+    padding: 16px 8px;
+  }
+  /* Description */
+  .kanban-card-desc {
+    font-size: 11px;
+    color: var(--text-light);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+  /* Clickable card */
+  .kanban-card { cursor: pointer; }
+  /* Task detail modal */
+  .kanban-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .kanban-modal-overlay.active { display: flex; }
+  .kanban-modal {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 24px;
+    width: 90%;
+    max-width: 480px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.2);
+    position: relative;
+  }
+  .kanban-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-light);
+  }
+  .kanban-modal h3 { margin-bottom: 12px; }
+  .kanban-modal-meta {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 12px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .kanban-modal-desc {
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    min-height: 40px;
+  }
+  /* Dark mode overrides */
+  @media (prefers-color-scheme: dark) {
+    .kanban-card { background: var(--bg); }
+    .kanban-col-todo .kanban-header,
+    .kanban-col-inprogress .kanban-header,
+    .kanban-col-done .kanban-header { background: transparent; }
+  }
+  .dark-force .kanban-card { background: var(--bg); }
+  /* Mobile */
+  @media (max-width: 768px) {
+    .kanban-board { grid-template-columns: 1fr; }
+    .kanban-body { max-height: none; }
+  }
+</style>
+
+<div class="kanban-board">
+  <!-- To Do Column -->
+  <div class="kanban-column kanban-col-todo">
+    <div class="kanban-header">
+      <span>To Do</span>
+      <span class="count">{{ columns.todo|length }}</span>
+    </div>
+    <div class="kanban-body">
+      {% for task in columns.todo %}
+      <div class="kanban-card" onclick="openTaskModal(this)" data-title="{{ task.title }}" data-employee="{{ task.employee|default('?') }}" data-type="{{ task.type }}" data-desc="{{ task.description|default('') }}" data-drive="{{ task.drive_link|default('') }}">
+        {% set emp_name = task.employee|default('?') %}
+        <span class="kanban-avatar" data-name="{{ emp_name }}">{{ emp_name[0] }}</span>
+        <div style="flex: 1; min-width: 0;">
+          <span class="kanban-card-title" title="{{ task.title }} \u2014 {{ emp_name }}">{{ task.title }}</span>
+          {% if task.description %}<div class="kanban-card-desc">{{ task.description }}</div>{% endif %}
+        </div>
+        {% if task.type == 'recurring' %}<span class="kanban-type kanban-type-r">R</span>{% else %}<span class="kanban-type kanban-type-o">O</span>{% endif %}
+        {% if task.drive_link %}<a href="{{ task.drive_link }}" target="_blank" class="kanban-drive" title="Drive link" onclick="event.stopPropagation();">&#x1F4CE;</a>{% endif %}
+      </div>
+      {% endfor %}
+      {% if not columns.todo %}
+      <div class="kanban-empty">No tasks</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- In Progress Column -->
+  <div class="kanban-column kanban-col-inprogress">
+    <div class="kanban-header">
+      <span>In Progress</span>
+      <span class="count">{{ columns.in_progress|length }}</span>
+    </div>
+    <div class="kanban-body">
+      {% for task in columns.in_progress %}
+      <div class="kanban-card" onclick="openTaskModal(this)" data-title="{{ task.title }}" data-employee="{{ task.employee|default('?') }}" data-type="{{ task.type }}" data-desc="{{ task.description|default('') }}" data-drive="{{ task.drive_link|default('') }}">
+        {% set emp_name = task.employee|default('?') %}
+        <span class="kanban-avatar" data-name="{{ emp_name }}">{{ emp_name[0] }}</span>
+        <div style="flex: 1; min-width: 0;">
+          <span class="kanban-card-title" title="{{ task.title }} \u2014 {{ emp_name }}">{{ task.title }}</span>
+          {% if task.description %}<div class="kanban-card-desc">{{ task.description }}</div>{% endif %}
+        </div>
+        {% if task.type == 'recurring' %}<span class="kanban-type kanban-type-r">R</span>{% else %}<span class="kanban-type kanban-type-o">O</span>{% endif %}
+        {% if task.drive_link %}<a href="{{ task.drive_link }}" target="_blank" class="kanban-drive" title="Drive link" onclick="event.stopPropagation();">&#x1F4CE;</a>{% endif %}
+      </div>
+      {% endfor %}
+      {% if not columns.in_progress %}
+      <div class="kanban-empty">No tasks</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Done Column -->
+  <div class="kanban-column kanban-col-done">
+    <div class="kanban-header">
+      <span>Done</span>
+      <span class="count">{{ columns.done|length }}</span>
+    </div>
+    <div class="kanban-body">
+      {% for task in columns.done %}
+      <div class="kanban-card" onclick="openTaskModal(this)" data-title="{{ task.title }}" data-employee="{{ task.employee|default('?') }}" data-type="{{ task.type }}" data-desc="{{ task.description|default('') }}" data-drive="{{ task.drive_link|default('') }}">
+        {% set emp_name = task.employee|default('?') %}
+        <span class="kanban-avatar" data-name="{{ emp_name }}">{{ emp_name[0] }}</span>
+        <div style="flex: 1; min-width: 0;">
+          <span class="kanban-card-title" title="{{ task.title }} \u2014 {{ emp_name }}">{{ task.title }}</span>
+          {% if task.description %}<div class="kanban-card-desc">{{ task.description }}</div>{% endif %}
+        </div>
+        {% if task.type == 'recurring' %}<span class="kanban-type kanban-type-r">R</span>{% else %}<span class="kanban-type kanban-type-o">O</span>{% endif %}
+        {% if task.drive_link %}<a href="{{ task.drive_link }}" target="_blank" class="kanban-drive" title="Drive link" onclick="event.stopPropagation();">&#x1F4CE;</a>{% endif %}
+      </div>
+      {% endfor %}
+      {% if not columns.done %}
+      <div class="kanban-empty">No tasks</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="kanban-modal-overlay" id="taskModal" onclick="if(event.target===this)this.classList.remove('active')">
+  <div class="kanban-modal">
+    <button class="kanban-modal-close" onclick="document.getElementById('taskModal').classList.remove('active')">&times;</button>
+    <h3 id="modalTitle"></h3>
+    <div class="kanban-modal-meta">
+      <span id="modalEmployee"></span>
+      <span id="modalType"></span>
+    </div>
+    <div class="kanban-modal-desc" id="modalDesc"></div>
+    <div id="modalDriveWrap" style="margin-top: 12px; display: none;">
+      <a id="modalDrive" href="#" target="_blank" class="btn btn-sm btn-outline">Open Drive Link</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// Assign consistent avatar colors based on employee name
+document.querySelectorAll('.kanban-avatar').forEach(function(el) {
+  var name = el.getAttribute('data-name') || '?';
+  var hash = 0;
+  for (var i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  var hue = ((hash % 360) + 360) % 360;
+  el.style.background = 'hsl(' + hue + ', 50%, 42%)';
+});
+
+function openTaskModal(el) {
+  var title = el.getAttribute('data-title');
+  var emp = el.getAttribute('data-employee');
+  var type = el.getAttribute('data-type');
+  var desc = el.getAttribute('data-desc');
+  var drive = el.getAttribute('data-drive');
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalEmployee').textContent = 'Assigned to: ' + emp;
+  document.getElementById('modalType').textContent = type === 'recurring' ? 'Recurring Task' : 'One-Time Task';
+  document.getElementById('modalDesc').textContent = desc || 'No description provided.';
+  var driveWrap = document.getElementById('modalDriveWrap');
+  if (drive) {
+    document.getElementById('modalDrive').href = drive;
+    driveWrap.style.display = 'block';
+  } else {
+    driveWrap.style.display = 'none';
+  }
+  document.getElementById('taskModal').classList.add('active');
+}
+</script>
+{% endblock %}

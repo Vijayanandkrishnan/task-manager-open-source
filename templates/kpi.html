@@ -1,0 +1,797 @@
+{% extends "base.html" %}
+{% block title %}Performance - {{ app_name }}{% endblock %}
+{% block content %}
+
+<style>
+.kpi-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+}
+.kpi-card .kpi-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  color: var(--ink-2);
+  font-weight: 800;
+}
+.kpi-card .kpi-value {
+  font-family: var(--display);
+  font-size: clamp(32px, 4vw, 44px);
+  line-height: 1;
+  margin-top: 10px;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--ink);
+}
+.kpi-card .kpi-unit { font-size: 18px; color: var(--ink-3); margin-left: 4px; }
+.kpi-card .kpi-delta {
+  font-size: 12px;
+  margin-top: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.kpi-delta.up { color: var(--sage); }
+.kpi-delta.down { color: var(--rose); }
+.kpi-delta.flat { color: var(--ink-3); }
+.kpi-context { font-size: 12px; color: var(--ink-3); margin-top: 6px; line-height: 1.35; }
+
+.section-kicker {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 8px 0 10px;
+  flex-wrap: wrap;
+}
+.section-kicker h2 { margin: 0; font-size: 15px; }
+.section-kicker p { margin: 3px 0 0; color: var(--ink-3); font-size: 12.5px; }
+
+.reality-hero { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.reality-hero .kpi-card { min-height: 132px; }
+.reality-hero .kpi-value { font-size: clamp(30px, 3.4vw, 40px); }
+.status-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 8px;
+}
+.status-line.sage { color: var(--sage); }
+.status-line.amber { color: var(--amber); }
+.status-line.rose { color: var(--rose); }
+
+.attention {
+  background: var(--amber-soft);
+  border: 1px solid transparent;
+  border-left: 4px solid var(--amber);
+  border-radius: var(--r);
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  color: var(--amber-ink);
+}
+.attention h3 {
+  color: var(--amber-ink);
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+.attention ul { margin: 0; padding-left: 20px; font-size: 13.5px; }
+.attention li { margin-bottom: 3px; }
+.attention-ok {
+  background: var(--sage-soft);
+  border-left-color: var(--sage);
+  color: var(--sage-ink);
+}
+.attention-ok h3 { color: var(--sage-ink); }
+
+.member-table { min-width: 1080px; }
+.member-table tbody tr { cursor: pointer; }
+.person-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+}
+.score-pill {
+  width: 34px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.score-pill.good { background: var(--sage-soft); color: var(--sage-ink); }
+.score-pill.ok { background: var(--amber-soft); color: var(--amber-ink); }
+.score-pill.risk { background: var(--rose-soft); color: var(--rose-ink); }
+.cell-main {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: var(--ink);
+}
+.cell-sub {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  line-height: 1.25;
+}
+.metric-warn { color: var(--amber); font-weight: 800; }
+.metric-risk { color: var(--rose); font-weight: 800; }
+.metric-good { color: var(--sage); font-weight: 800; }
+
+.spark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 22px;
+  vertical-align: middle;
+}
+.spark-bar {
+  width: 3px;
+  background: var(--accent);
+  border-radius: 1px;
+  min-height: 1px;
+  opacity: .85;
+}
+.spark-bar.zero { background: var(--line); opacity: .5; min-height: 1px; }
+
+.rate-bar {
+  width: 82px;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+}
+.rate-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s; }
+.rate-fill.good { background: var(--sage); }
+.rate-fill.ok { background: var(--amber); }
+.rate-fill.poor { background: var(--rose); }
+
+.flag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.flag-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 280px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.flag-pill.sage { background: var(--sage-soft); color: var(--sage-ink); }
+.flag-pill.amber { background: var(--amber-soft); color: var(--amber-ink); }
+.flag-pill.rose { background: var(--rose-soft); color: var(--rose-ink); }
+.flag-note {
+  color: var(--ink-3);
+  font-size: 11.5px;
+  max-width: 280px;
+  line-height: 1.3;
+}
+
+.detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin-top: 12px;
+}
+.detail-metric {
+  padding: 14px 16px;
+  border-right: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  min-height: 90px;
+}
+.detail-metric:nth-child(6n) { border-right: 0; }
+.detail-metric .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  font-weight: 800;
+}
+.detail-metric .value {
+  font-family: var(--display);
+  font-size: 32px;
+  line-height: 1;
+  margin-top: 8px;
+  color: var(--ink);
+}
+
+.review-table { min-width: 920px; }
+.outlier-table { min-width: 920px; }
+.chart-wrap { position: relative; height: 280px; }
+
+.project-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.project-row:last-child { border: 0; }
+.project-name { font-size: 13.5px; color: var(--ink); font-weight: 700; }
+.project-client { font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+.project-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+  min-width: 80px;
+}
+.project-bar { height: 100%; background: var(--accent); border-radius: 999px; }
+.project-hours {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: var(--ink);
+  min-width: 64px;
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .kpi-hero { grid-template-columns: 1fr; }
+  .kpi-card .kpi-value { font-size: 34px; }
+  .project-row { align-items: flex-start; flex-wrap: wrap; }
+  .project-row > div:first-child { flex: 1 1 100% !important; min-width: 0 !important; }
+}
+</style>
+
+<div class="flex-between" style="margin-bottom: 6px;">
+  <div>
+    <div class="page-eyebrow">{{ start_date }} -> {{ end_date }}</div>
+    <h1>Team <em>Performance</em></h1>
+    <p class="page-sub">Compared against the previous {{ days }}-day period ({{ prev_start_date }} -> {{ prev_end_date }})</p>
+  </div>
+  <form method="GET" action="/admin/kpi" style="display: flex; gap: 8px;">
+    <select name="employee" onchange="this.form.submit()" style="width: auto;">
+      <option value="0">All Team ({{ employees|length }})</option>
+      {% for emp in employees %}
+      <option value="{{ emp.id }}" {% if emp_filter == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="days" onchange="this.form.submit()" style="width: auto;">
+      <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+      <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 days</option>
+      <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+      <option value="60" {% if days == 60 %}selected{% endif %}>Last 60 days</option>
+      <option value="90" {% if days == 90 %}selected{% endif %}>Last quarter</option>
+      <option value="180" {% if days == 180 %}selected{% endif %}>Last 6 months</option>
+    </select>
+  </form>
+</div>
+
+<div class="kpi-hero">
+  <div class="kpi-card">
+    <div class="kpi-label">Hours Logged</div>
+    <div class="kpi-value">{{ '%.1f'|format(kpis.hours.value) }}<span class="kpi-unit">h</span></div>
+    {% if kpis.hours.delta[0] is not none %}
+    <div class="kpi-delta {{ kpis.hours.delta[1] }}">
+      {% if kpis.hours.delta[1] == 'up' %}up{% elif kpis.hours.delta[1] == 'down' %}down{% else %}flat{% endif %}
+      {{ kpis.hours.delta[0]|abs }}% vs previous period
+    </div>
+    {% else %}
+    <div class="kpi-delta flat">No previous-period data</div>
+    {% endif %}
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Tasks Completed</div>
+    <div class="kpi-value">{{ kpis.tasks.value }}</div>
+    {% if kpis.tasks.delta[0] is not none %}
+    <div class="kpi-delta {{ kpis.tasks.delta[1] }}">
+      {% if kpis.tasks.delta[1] == 'up' %}up{% elif kpis.tasks.delta[1] == 'down' %}down{% else %}flat{% endif %}
+      {{ kpis.tasks.delta[0]|abs }}% vs previous period
+    </div>
+    {% else %}
+    <div class="kpi-delta flat">No previous-period data</div>
+    {% endif %}
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Active Members</div>
+    <div class="kpi-value">{{ kpis.active_members.value }}<span class="kpi-unit">/{{ kpis.active_members.total }}</span></div>
+    <div class="kpi-context">{{ kpis.active_members.pct }}% of team logged task time in period</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Avg Tasks / Active Day</div>
+    <div class="kpi-value">{{ '%.1f'|format(kpis.avg_tasks_day.value) }}</div>
+    {% if kpis.avg_tasks_day.delta[0] is not none %}
+    <div class="kpi-delta {{ kpis.avg_tasks_day.delta[1] }}">
+      {% if kpis.avg_tasks_day.delta[1] == 'up' %}up{% elif kpis.avg_tasks_day.delta[1] == 'down' %}down{% else %}flat{% endif %}
+      {{ kpis.avg_tasks_day.delta[0]|abs }}% throughput change
+    </div>
+    {% else %}
+    <div class="kpi-delta flat">No previous-period data</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="section-kicker">
+  <div>
+    <h2>Reality Check</h2>
+    <p>Task logs compared with check-in/out span, planned recurring work, project assignment, and repeated-task timing.</p>
+  </div>
+  <span class="badge accent">Read-only analytics</span>
+</div>
+
+<div class="kpi-hero reality-hero">
+  <div class="kpi-card">
+    <div class="kpi-label">Attendance Span</div>
+    <div class="kpi-value">{{ '%.1f'|format(reality.attendance_hours) }}<span class="kpi-unit">h</span></div>
+    <div class="kpi-context">{{ reality.attendance_days }} check-in day(s) captured · {{ reality.missing_checkout_days }} missing checkout(s)</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Logged vs Span</div>
+    <div class="kpi-value">{{ '%+.1f'|format(reality.logged_gap_hours) }}<span class="kpi-unit">h</span></div>
+    <div class="status-line {{ reality.logged_gap_class }}">
+      {% if reality.logged_gap_class == 'sage' %}Aligned{% elif reality.logged_gap_class == 'amber' %}Review gap{% else %}Needs audit{% endif %}
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Planned Completion</div>
+    <div class="kpi-value">{% if reality.plan_rate is not none %}{{ reality.plan_rate }}<span class="kpi-unit">%</span>{% else %}-{% endif %}</div>
+    <div class="kpi-context">{{ reality.planned_done }}/{{ reality.planned_due }} recurring due items completed on date</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Task Density</div>
+    <div class="kpi-value">{{ '%.2f'|format(reality.tasks_per_hour) }}</div>
+    <div class="kpi-context">Team tasks per logged hour · median member {{ '%.2f'|format(reality.median_tasks_per_hour) }}</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Unassigned Time</div>
+    <div class="kpi-value">{{ '%.1f'|format(reality.no_project_hours) }}<span class="kpi-unit">h</span></div>
+    <div class="kpi-context">{{ reality.no_project_pct }}% of logged time has no project</div>
+  </div>
+
+  <div class="kpi-card">
+    <div class="kpi-label">Review Signals</div>
+    <div class="kpi-value">{{ reality.review_flags }}</div>
+    <div class="kpi-context">{{ reality.flagged_members }} member(s) flagged · {{ reality.time_outliers }} duration outlier(s)</div>
+  </div>
+</div>
+
+{% if inactive_members or low_completion_members or overdue_count > 0 or review_queue %}
+<div class="attention">
+  <h3>Needs Attention</h3>
+  <ul>
+    {% if overdue_count > 0 %}
+    <li><strong>{{ overdue_count }}</strong> one-time task(s) still open after 7+ days.</li>
+    {% endif %}
+    {% for m in inactive_members %}
+    <li><strong>{{ m.name }}</strong> has not logged work in the last 3 days after being active earlier in the period.</li>
+    {% endfor %}
+    {% for m in low_completion_members %}
+    <li><strong>{{ m.name }}</strong>: planned recurring completion is <strong>{{ m.completion_rate }}%</strong> ({{ m.recurring_done }}/{{ m.recurring_due }} on-time).</li>
+    {% endfor %}
+    {% if review_queue %}
+    <li><strong>{{ review_queue|length }}</strong> member(s) have work-log review signals; check the review queue below.</li>
+    {% endif %}
+  </ul>
+</div>
+{% else %}
+<div class="attention attention-ok">
+  <h3>All Clear</h3>
+  <div style="font-size: 13.5px;">Team activity, recurring completion, and log consistency have no current review signals.</div>
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <div class="flex-between" style="margin-bottom: 12px;">
+      <h2 style="margin: 0;">Logged Hours vs Attendance Span</h2>
+      <span style="font-size: 12px; color: var(--ink-3);">{{ days }} days</span>
+    </div>
+    <div class="chart-wrap"><canvas id="dailyHoursChart"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between" style="margin-bottom: 12px;">
+      <h2 style="margin: 0;">Tasks Completed</h2>
+      <span style="font-size: 12px; color: var(--ink-3);">{{ days }} days</span>
+    </div>
+    <div class="chart-wrap"><canvas id="dailyTasksChart"></canvas></div>
+  </div>
+</div>
+
+{% if not emp_filter %}
+<div class="card">
+  <div class="flex-between" style="margin-bottom: 14px;">
+    <h2 style="margin: 0;">Team Effectiveness</h2>
+    <span style="font-size: 12px; color: var(--ink-3);">{{ member_rows|length }} members · sorted by logged hours</span>
+  </div>
+  <table class="member-table">
+    <thead>
+      <tr>
+        <th style="width: 22%;">Member</th>
+        <th>Department</th>
+        <th>Logged</th>
+        <th>Attendance</th>
+        <th>Tasks / h</th>
+        <th>Planned</th>
+        <th>No Project</th>
+        <th>Review</th>
+        <th>Activity</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in member_rows %}
+      <tr onclick="window.location='/admin/kpi?employee={{ m.id }}&days={{ days }}'">
+        <td>
+          <div class="person-cell">
+            <span class="score-pill {{ m.effectiveness_level }}">{{ m.effectiveness_score }}</span>
+            <div>
+              <div style="font-weight: 800; color: var(--ink);">{{ m.name }}</div>
+              <div class="cell-sub">Effectiveness index</div>
+            </div>
+          </div>
+        </td>
+        <td style="font-size: 12.5px; color: var(--ink-3);">{{ m.department }}</td>
+        <td>
+          <div class="cell-main">{{ '%.1f'|format(m.hours) }} h</div>
+          <div class="cell-sub">{{ m.tasks }} tasks · {{ m.avg_minutes_per_task }} min/task</div>
+        </td>
+        <td>
+          <div class="cell-main">{{ '%.1f'|format(m.attendance_hours) }} h</div>
+          <div class="cell-sub">{{ m.attendance_days }} days · {{ m.missing_checkout_days }} missing out</div>
+        </td>
+        <td>
+          <div class="cell-main">{{ '%.2f'|format(m.tasks_per_hour) }}</div>
+          {% if m.logged_attendance_gap_hours > 1.5 %}
+          <div class="cell-sub metric-warn">+{{ '%.1f'|format(m.logged_attendance_gap_hours) }}h vs span</div>
+          {% elif m.logged_attendance_gap_hours < -1.5 %}
+          <div class="cell-sub metric-good">{{ '%.1f'|format(m.logged_attendance_gap_hours) }}h vs span</div>
+          {% else %}
+          <div class="cell-sub">span aligned</div>
+          {% endif %}
+        </td>
+        <td>
+          {% if m.completion_rate is not none %}
+            {% set cls = 'good' if m.completion_rate >= 85 else ('ok' if m.completion_rate >= 60 else 'poor') %}
+            <span class="rate-bar"><span class="rate-fill {{ cls }}" style="width: {{ m.completion_rate }}%;"></span></span>
+            <span style="font-size: 12px; margin-left: 6px; font-weight: 800; color: var(--ink-2);">{{ m.completion_rate }}%</span>
+            <div class="cell-sub">{{ m.recurring_done }}/{{ m.recurring_due }} on-time</div>
+          {% else %}
+            <span style="color: var(--ink-4); font-size: 12px;">no recurring plan</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="cell-main">{{ '%.1f'|format(m.no_project_hours) }} h</div>
+          <div class="cell-sub">{{ m.no_project_pct }}% of logged time</div>
+        </td>
+        <td>
+          {% if m.review_flag_count %}
+          <div class="flag-list">
+            <span class="flag-pill {{ m.review_flags[0].level }}">{{ m.review_flag_count }} signal{{ '' if m.review_flag_count == 1 else 's' }}</span>
+            <span class="flag-note">{{ m.review_flags[0].text }}</span>
+          </div>
+          {% else %}
+          <span class="flag-pill sage">Clear</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="spark">
+            {% for v in m.sparkline %}
+              {% set h = ((v / m.spark_max) * 20)|int if m.spark_max > 0 else 0 %}
+              <span class="spark-bar {% if v == 0 %}zero{% endif %}" style="height: {{ (h if h > 0 else 1) }}px;"></span>
+            {% endfor %}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+      {% if not member_rows %}
+      <tr><td colspan="9" style="text-align: center; padding: 32px; color: var(--ink-3);">No team members to display.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+{% set m = member_rows[0] if member_rows else none %}
+{% if m %}
+<div class="card">
+  <div class="flex-between" style="margin-bottom: 14px;">
+    <div>
+      <h2 style="margin: 0;">{{ m.name }} Deep Dive</h2>
+      <div class="cell-sub">Effectiveness index {{ m.effectiveness_score }} · {{ m.tasks }} tasks · {{ m.review_flag_count }} review signal{{ '' if m.review_flag_count == 1 else 's' }}</div>
+    </div>
+    <a href="/admin/kpi?days={{ days }}" class="btn btn-sm btn-outline">All Team</a>
+  </div>
+  <div class="detail-metrics">
+    <div class="detail-metric">
+      <div class="label">Logged Hours</div>
+      <div class="value">{{ '%.1f'|format(m.hours) }}</div>
+      <div class="cell-sub">{{ m.avg_minutes_per_task }} min/task average</div>
+    </div>
+    <div class="detail-metric">
+      <div class="label">Attendance Span</div>
+      <div class="value">{{ '%.1f'|format(m.attendance_hours) }}</div>
+      <div class="cell-sub">{{ m.attendance_days }} check-in day(s)</div>
+    </div>
+    <div class="detail-metric">
+      <div class="label">Logged vs Span</div>
+      <div class="value">{{ '%+.1f'|format(m.logged_attendance_gap_hours) }}</div>
+      <div class="cell-sub">hours difference</div>
+    </div>
+    <div class="detail-metric">
+      <div class="label">Tasks / Hour</div>
+      <div class="value">{{ '%.2f'|format(m.tasks_per_hour) }}</div>
+      <div class="cell-sub">{{ m.tasks }} completed tasks</div>
+    </div>
+    <div class="detail-metric">
+      <div class="label">Planned Completion</div>
+      <div class="value">{% if m.completion_rate is not none %}{{ m.completion_rate }}%{% else %}-{% endif %}</div>
+      <div class="cell-sub">{{ m.recurring_done }}/{{ m.recurring_due }} recurring on-time</div>
+    </div>
+    <div class="detail-metric">
+      <div class="label">No Project</div>
+      <div class="value">{{ '%.1f'|format(m.no_project_hours) }}</div>
+      <div class="cell-sub">{{ m.no_project_pct }}% of logged time</div>
+    </div>
+  </div>
+  {% if m.review_flags %}
+  <div style="margin-top: 14px;">
+    <h3>Review Signals</h3>
+    <div class="flag-list">
+      {% for flag in m.review_flags %}
+      <span class="flag-pill {{ flag.level }}">{{ flag.text }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
+{% if review_queue %}
+<div class="card">
+  <div class="flex-between" style="margin-bottom: 14px;">
+    <h2 style="margin: 0;">Work Log Review Queue</h2>
+    <span style="font-size: 12px; color: var(--ink-3);">Highest signal members first</span>
+  </div>
+  <table class="review-table">
+    <thead>
+      <tr>
+        <th>Member</th>
+        <th>Primary Signal</th>
+        <th>Logged / Attendance</th>
+        <th>Tasks / h</th>
+        <th>Planned</th>
+        <th>No Project</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in review_queue %}
+      <tr onclick="window.location='/admin/kpi?employee={{ m.id }}&days={{ days }}'" style="cursor: pointer;">
+        <td>
+          <div style="font-weight: 800;">{{ m.name }}</div>
+          <div class="cell-sub">{{ m.department }}</div>
+        </td>
+        <td>
+          <span class="flag-pill {{ m.review_flags[0].level }}">{{ m.review_flags[0].text }}</span>
+          {% if m.review_flag_count > 1 %}
+          <div class="cell-sub">+{{ m.review_flag_count - 1 }} more signal{{ '' if m.review_flag_count == 2 else 's' }}</div>
+          {% endif %}
+        </td>
+        <td>
+          <div class="cell-main">{{ '%.1f'|format(m.hours) }}h / {{ '%.1f'|format(m.attendance_hours) }}h</div>
+          <div class="cell-sub">{{ '%+.1f'|format(m.logged_attendance_gap_hours) }}h difference</div>
+        </td>
+        <td class="cell-main">{{ '%.2f'|format(m.tasks_per_hour) }}</td>
+        <td>
+          {% if m.completion_rate is not none %}
+          <div class="cell-main">{{ m.completion_rate }}%</div>
+          <div class="cell-sub">{{ m.recurring_done }}/{{ m.recurring_due }}</div>
+          {% else %}
+          <span class="cell-sub">no recurring plan</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="cell-main">{{ '%.1f'|format(m.no_project_hours) }}h</div>
+          <div class="cell-sub">{{ m.no_project_pct }}%</div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if time_outliers %}
+<div class="card">
+  <div class="flex-between" style="margin-bottom: 14px;">
+    <h2 style="margin: 0;">Time Outliers</h2>
+    <span style="font-size: 12px; color: var(--ink-3);">Compared to repeated task-title median</span>
+  </div>
+  <table class="outlier-table">
+    <thead>
+      <tr>
+        <th>Member</th>
+        <th>Date</th>
+        <th>Task</th>
+        <th>Project</th>
+        <th>Logged</th>
+        <th>Typical</th>
+        <th>Multiple</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in time_outliers %}
+      <tr>
+        <td>{{ item.employee }}</td>
+        <td>{{ item.date }}</td>
+        <td>
+          <div style="font-weight: 700;">{{ item.title }}</div>
+          <div class="cell-sub">{{ item.kind }}</div>
+        </td>
+        <td>{{ item.project }}</td>
+        <td class="cell-main">{{ item.hours }}h</td>
+        <td>{{ item.typical_minutes }} min</td>
+        <td><span class="flag-pill amber">{{ item.multiple }}x</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if project_list %}
+<div class="card">
+  <div class="flex-between" style="margin-bottom: 14px;">
+    <h2 style="margin: 0;">Hours by Project</h2>
+    <span style="font-size: 12px; color: var(--ink-3);">Top {{ project_list|length }} · sorted by hours</span>
+  </div>
+  {% for p in project_list %}
+  {% set pct = (p.hours / total_project_hours * 100)|round|int %}
+  <div class="project-row">
+    <div style="flex: 0 0 30%; min-width: 180px;">
+      <div class="project-name">{{ p.name }}</div>
+      {% if p.client %}<div class="project-client">{{ p.client }}</div>{% endif %}
+    </div>
+    <div class="project-bar-wrap">
+      <div class="project-bar" style="width: {{ pct }}%;"></div>
+    </div>
+    <div class="project-hours">{{ '%.1f'|format(p.hours) }} h</div>
+    <div style="font-size: 11px; color: var(--ink-3); min-width: 54px; text-align: right;">{{ p.tasks }} tasks</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const DATES = {{ date_list|tojson }};
+const HOURS = {{ daily_hours_list|tojson }};
+const ATTENDANCE = {{ daily_attendance_list|tojson }};
+const TASKS = {{ daily_tasks_list|tojson }};
+const LABELS = DATES.map(d => d.slice(5));
+
+function cssVar(n) {
+  return getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+}
+const INK = cssVar('--ink');
+const INK3 = cssVar('--ink-3');
+const ACCENT = cssVar('--accent');
+const SAGE = cssVar('--sage');
+const AMBER = cssVar('--amber');
+const LINE = cssVar('--line-soft');
+
+Chart.defaults.font.family = cssVar('--ui') || "Inter, sans-serif";
+Chart.defaults.color = INK3;
+Chart.defaults.borderColor = LINE;
+
+function sharedOptions(label) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true } },
+      tooltip: {
+        backgroundColor: INK,
+        titleColor: '#fff',
+        bodyColor: '#fff',
+        padding: 10,
+        cornerRadius: 6,
+        callbacks: {
+          title: (items) => DATES[items[0].dataIndex],
+          label: (item) => `${item.dataset.label}: ${item.parsed.y} ${label}`,
+        }
+      }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+      y: {
+        beginAtZero: true,
+        grid: { color: LINE, drawBorder: false },
+        ticks: { font: { size: 10 }, precision: 0 }
+      }
+    }
+  };
+}
+
+function mkHoursChart() {
+  const ctx = document.getElementById('dailyHoursChart');
+  if (!ctx) return;
+  new Chart(ctx, {
+    data: {
+      labels: LABELS,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Logged hours',
+          data: HOURS,
+          backgroundColor: ACCENT + 'cc',
+          borderWidth: 0,
+          borderRadius: 4,
+          maxBarThickness: 22,
+        },
+        {
+          type: 'line',
+          label: 'Attendance span',
+          data: ATTENDANCE,
+          borderColor: SAGE,
+          backgroundColor: SAGE,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: .25,
+        }
+      ]
+    },
+    options: sharedOptions('hours')
+  });
+}
+
+function mkTasksChart() {
+  const ctx = document.getElementById('dailyTasksChart');
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: LABELS,
+      datasets: [{
+        label: 'Completed tasks',
+        data: TASKS,
+        backgroundColor: AMBER + 'cc',
+        borderWidth: 0,
+        borderRadius: 4,
+        maxBarThickness: 24,
+      }]
+    },
+    options: sharedOptions('tasks')
+  });
+}
+
+mkHoursChart();
+mkTasksChart();
+</script>
+{% endblock %}

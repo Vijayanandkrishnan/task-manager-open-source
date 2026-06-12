@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if invoice else 'New' }} Invoice - Task Manager{% endblock %}
+{% block content %}
+<div style="margin-bottom: 20px;">
+  <a href="/invoices" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; All Invoices</a>
+  <h1 style="margin-top: 4px;">{{ 'Edit Invoice' if invoice else 'New Invoice' }}</h1>
+</div>
+
+<form method="POST" action="{{ '/invoices/' ~ invoice.id ~ '/update' if invoice else '/invoices/create' }}">
+  <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+  <div class="card">
+    <h2>Invoice Details</h2>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Client *</label>
+        <select name="client_id" required>
+          <option value="">Select client...</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}" {% if invoice and invoice.client_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group grow">
+        <label>Invoice Number</label>
+        <input type="text" name="invoice_number" value="{{ inv_number }}" required>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Invoice Date</label>
+        <input type="date" name="invoice_date" value="{{ invoice.invoice_date if invoice else today }}" required>
+      </div>
+      <div class="form-group grow">
+        <label>Due Date</label>
+        <input type="date" name="due_date" value="{{ invoice.due_date if invoice and invoice.due_date else '' }}">
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Currency</label>
+        <select name="currency" id="currencySelect" onchange="updateCurrencySymbol()">
+          {% for cur in currencies %}
+          <option value="{{ cur.code }}" data-symbol="{{ cur.symbol }}" {% if invoice and (invoice.currency or 'INR') == cur.code %}selected{% elif not invoice and cur.is_default %}selected{% endif %}>{{ cur.code }} ({{ cur.symbol }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group grow">
+        <label>Billing Frequency (auto-generation)</label>
+        <select name="billing_frequency" onchange="toggleBillingDays(this)">
+          <option value="0" {% if not invoice or invoice.billing_frequency == 0 %}selected{% endif %}>One-time (no auto)</option>
+          {% for n in range(1, 13) %}
+          {% set labels = {1:'Monthly', 2:'Every 2 months', 3:'Quarterly', 4:'Every 4 months', 5:'Every 5 months', 6:'Every 6 Months', 7:'Every 7 months', 8:'Every 8 months', 9:'Every 9 months', 10:'Every 10 months', 11:'Every 11 months', 12:'Yearly'} %}
+          <option value="{{ n }}" {% if invoice and invoice.billing_frequency == n %}selected{% endif %}>{{ labels[n] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group grow" id="billingDaysField" style="{% if not invoice or not invoice.billing_frequency %}display:none;{% endif %}">
+        <label>Billing Day(s) of Month <span style="font-weight:400;color:var(--ink-3);">(comma-separated, e.g. 1, 15)</span></label>
+        <input type="text" name="billing_days" value="{{ invoice.billing_days if invoice and invoice.billing_days else '' }}" placeholder="e.g. 1 or 1, 15" pattern="[0-9, ]*">
+      </div>
+      <div class="form-group grow">
+        <label>Discount %</label>
+        <input type="number" name="discount_percent" value="{{ invoice.discount_percent if invoice else 0 }}" min="0" max="100" step="0.5">
+      </div>
+    </div>
+    {% if company_profiles %}
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Invoice From (Company)</label>
+        <select name="company_profile_id">
+          <option value="0">Default (from Settings)</option>
+          {% for p in company_profiles %}
+          <option value="{{ p.id }}" {% if invoice and invoice.company_profile_id == p.id %}selected{% endif %}>
+            {{ p.name }}{% if p.is_default %} (default){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="flex-between" style="margin-bottom: 12px;">
+      <h2>Line Items</h2>
+      <button type="button" class="btn btn-sm btn-primary" onclick="addItemRow()">+ Add Item</button>
+    </div>
+    <table id="itemsTable">
+      <thead>
+        <tr>
+          <th style="width: 45%;">Description</th>
+          <th style="width: 15%;">Quantity</th>
+          <th style="width: 20%;">Unit Price</th>
+          <th style="width: 15%;">Total</th>
+          <th style="width: 5%;"></th>
+        </tr>
+      </thead>
+      <tbody id="itemsBody">
+        {% if items %}
+          {% for item in items %}
+          <tr class="item-row">
+            <td><input type="text" name="item_description[]" value="{{ item.description }}" placeholder="Service description" required></td>
+            <td><input type="number" name="item_quantity[]" value="{{ item.quantity }}" min="0.01" step="0.01" onchange="calcRow(this)" required></td>
+            <td><input type="number" name="item_price[]" value="{{ item.unit_price }}" min="0" step="0.01" onchange="calcRow(this)" required></td>
+            <td class="row-total" style="font-weight: 600;"><span class="cur-sym">{{ '₹' if not invoice or (invoice.currency or 'INR') == 'INR' else '$' }}</span>{{ '%.2f'|format(item.total) }}</td>
+            <td><button type="button" class="btn btn-sm btn-outline" style="color: var(--danger);" onclick="this.closest('tr').remove(); calcTotal();">&times;</button></td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr class="item-row">
+            <td><input type="text" name="item_description[]" placeholder="Service description" required></td>
+            <td><input type="number" name="item_quantity[]" value="1" min="0.01" step="0.01" onchange="calcRow(this)" required></td>
+            <td><input type="number" name="item_price[]" value="0" min="0" step="0.01" onchange="calcRow(this)" required></td>
+            <td class="row-total" style="font-weight: 600;"><span class="cur-sym">{{ default_currency_sym }}</span>0.00</td>
+            <td><button type="button" class="btn btn-sm btn-outline" style="color: var(--danger);" onclick="this.closest('tr').remove(); calcTotal();">&times;</button></td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <div style="text-align: right; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+      <div style="font-size: 14px; margin-bottom: 4px;">Subtotal: <strong id="subtotalDisplay">0.00</strong></div>
+      <div style="font-size: 14px; margin-bottom: 4px;">Discount: <span id="discountDisplay">0.00</span></div>
+      <div style="font-size: 20px; font-weight: 700; color: var(--primary);">Total: <span id="totalDisplay">0.00</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="form-group">
+      <label>Remarks / Notes</label>
+      <textarea name="remarks" rows="3" placeholder="Payment terms, bank details, thank you note, etc.">{{ invoice.remarks if invoice else '' }}</textarea>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 8px; justify-content: flex-end;">
+    <a href="/invoices" class="btn btn-outline">Cancel</a>
+    <button type="submit" class="btn btn-purple">{{ 'Update Invoice' if invoice else 'Create Invoice' }}</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getCurrencySymbol() {
+  var sel = document.getElementById('currencySelect');
+  var opt = sel.options[sel.selectedIndex];
+  return opt.getAttribute('data-symbol') || sel.value;
+}
+
+function updateCurrencySymbol() {
+  var sym = getCurrencySymbol();
+  document.querySelectorAll('.cur-sym').forEach(function(el) { el.textContent = sym; });
+  calcTotal();
+}
+
+function addItemRow() {
+  var sym = getCurrencySymbol();
+  var tbody = document.getElementById('itemsBody');
+  var row = document.createElement('tr');
+  row.className = 'item-row';
+  row.innerHTML = '<td><input type="text" name="item_description[]" placeholder="Service description" required></td>' +
+    '<td><input type="number" name="item_quantity[]" value="1" min="0.01" step="0.01" onchange="calcRow(this)" required></td>' +
+    '<td><input type="number" name="item_price[]" value="0" min="0" step="0.01" onchange="calcRow(this)" required></td>' +
+    '<td class="row-total" style="font-weight: 600;"><span class="cur-sym">' + sym + '</span>0.00</td>' +
+    '<td><button type="button" class="btn btn-sm btn-outline" style="color: var(--danger);" onclick="this.closest(\'tr\').remove(); calcTotal();">&times;</button></td>';
+  tbody.appendChild(row);
+}
+
+function calcRow(input) {
+  var sym = getCurrencySymbol();
+  var row = input.closest('tr');
+  var qty = parseFloat(row.querySelector('[name="item_quantity[]"]').value) || 0;
+  var price = parseFloat(row.querySelector('[name="item_price[]"]').value) || 0;
+  row.querySelector('.row-total').innerHTML = '<span class="cur-sym">' + sym + '</span>' + (qty * price).toFixed(2);
+  calcTotal();
+}
+
+function calcTotal() {
+  var sym = getCurrencySymbol();
+  var subtotal = 0;
+  document.querySelectorAll('.item-row').forEach(function(row) {
+    var qty = parseFloat(row.querySelector('[name="item_quantity[]"]').value) || 0;
+    var price = parseFloat(row.querySelector('[name="item_price[]"]').value) || 0;
+    subtotal += qty * price;
+  });
+  var discount = parseFloat(document.querySelector('[name="discount_percent"]').value) || 0;
+  var discountAmt = subtotal * (discount / 100);
+  var total = subtotal - discountAmt;
+  document.getElementById('subtotalDisplay').textContent = sym + subtotal.toFixed(2);
+  document.getElementById('discountDisplay').textContent = sym + discountAmt.toFixed(2);
+  document.getElementById('totalDisplay').textContent = sym + total.toFixed(2);
+}
+
+document.querySelector('[name="discount_percent"]').addEventListener('change', calcTotal);
+calcTotal();
+</script>
+{% endblock %}

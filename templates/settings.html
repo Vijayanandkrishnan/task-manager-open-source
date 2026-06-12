@@ -1,0 +1,535 @@
+{% extends "base.html" %}
+{% block title %}Settings - Task Manager{% endblock %}
+{% block content %}
+<style>
+  details { margin-bottom: 8px; }
+  details > summary { font-size: 14px; }
+  details > div, details > table { padding: 10px 14px; }
+  details table { width: 100%; }
+  details table td { padding: 4px 8px; font-size: 13px; vertical-align: middle; }
+  details table code { font-size: 12px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px; }
+</style>
+
+<div class="flex-between" style="margin-bottom: 20px;">
+  <div>
+    <h1>Settings</h1>
+    <p class="page-sub">Company profile, integrations, branding, currency, and API access.</p>
+  </div>
+  <div>
+    <a href="/settings/lead-intake" class="btn btn-sm btn-primary">Lead Intake</a>
+    <a href="/settings/currencies" class="btn btn-sm btn-outline">Currencies</a>
+    <a href="/admin/permissions" class="btn btn-sm btn-outline">Permissions</a>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{% if telegram_active %}On{% else %}Off{% endif %}</div>
+    <div class="stat-label">Telegram</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ settings.default_currency or 'INR' }}</div>
+    <div class="stat-label">Currency</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{% if settings.smtp_enabled == '1' %}On{% else %}Off{% endif %}</div>
+    <div class="stat-label">Email</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{% if settings.app_logo_url %}Set{% else %}None{% endif %}</div>
+    <div class="stat-label">Logo</div>
+  </div>
+</div>
+
+<!-- Main Settings Form -->
+<form method="POST" action="/settings/update">
+  <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+
+  <!-- 1. Company Information -->
+  <div class="card">
+    <h2>Company Information</h2>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Used on invoices and PDF exports.
+    </p>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Company Name</label>
+        <input type="text" name="company_name" value="{{ settings.company_name }}" placeholder="Your Company Name">
+      </div>
+      <div class="form-group grow">
+        <label>Logo URL</label>
+        <input type="text" name="company_logo_url" value="{{ settings.company_logo_url }}" placeholder="https://example.com/logo.png">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Address</label>
+      <input type="text" name="company_address" value="{{ settings.company_address }}" placeholder="123 Business St, City, Country">
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Email</label>
+        <input type="email" name="company_email" value="{{ settings.company_email }}" placeholder="info@company.com">
+      </div>
+      <div class="form-group grow">
+        <label>Phone</label>
+        <input type="text" name="company_phone" value="{{ settings.company_phone }}" placeholder="+91-XXXXXXXXXX">
+      </div>
+    </div>
+
+    <h3 style="margin-top: 20px; margin-bottom: 12px;">Accountant / Finance</h3>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Accountant Name</label>
+        <input type="text" name="accountant_name" value="{{ settings.accountant_name }}" placeholder="Accountant">
+      </div>
+      <div class="form-group grow">
+        <label>Accountant Telegram Chat ID</label>
+        <input type="text" name="accountant_chat_id" value="{{ settings.accountant_chat_id }}" placeholder="e.g. 123456789">
+      </div>
+    </div>
+
+    <h3 style="margin-top: 20px; margin-bottom: 12px;">Application Branding</h3>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>App Name</label>
+        <input type="text" name="app_name" value="{{ settings.app_name or 'Task Manager' }}" placeholder="Task Manager">
+      </div>
+      <div class="form-group grow">
+        <label>Public Base URL</label>
+        <input type="url" name="public_base_url" value="{{ settings.public_base_url or '' }}" placeholder="http://localhost:5050">
+      </div>
+      <div class="form-group grow">
+        <label>Primary Color</label>
+        <input type="color" name="primary_color" value="{{ settings.primary_color or '#3b6bd4' }}" style="height: 38px; padding: 2px;">
+      </div>
+    </div>
+    <div style="margin-bottom: 16px;">
+      <label style="font-weight: 600; display: block; margin-bottom: 6px;">Application Logo</label>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        {% if settings.app_logo_url %}
+        <img src="{{ settings.app_logo_url }}" alt="Logo" style="height: 60px; max-width: 240px; object-fit: contain; border: 1px solid var(--border); border-radius: 6px; padding: 6px; background: #fff;">
+        {% else %}
+        <span style="color: var(--text-light); font-size: 13px;">No logo set</span>
+        {% endif %}
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Company Settings</button>
+  </div>
+</form>
+
+<!-- Logo upload (standalone form with enctype) -->
+<div class="card">
+  <h3>Upload Logo</h3>
+  <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">Upload an image file (JPG, PNG, SVG, WebP). Max 2 MB. Appears in the navigation bar.</p>
+  <form method="POST" action="/settings/upload-logo" enctype="multipart/form-data" class="form-row" style="gap: 8px; align-items: flex-end;">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-group grow">
+      <input type="file" name="logo_file" accept=".jpg,.jpeg,.png,.gif,.webp,.svg" required style="font-size: 13px;">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Upload Logo</button>
+  </form>
+</div>
+
+<!-- Continue main settings form -->
+<form method="POST" action="/settings/update">
+  <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+  <div class="card">
+    <h3 style="margin-bottom: 12px;">Dark Mode</h3>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Dark Mode</label>
+        <select name="dark_mode">
+          <option value="off" {% if settings.dark_mode == 'off' or not settings.dark_mode %}selected{% endif %}>Off</option>
+          <option value="on" {% if settings.dark_mode == 'on' %}selected{% endif %}>Always On</option>
+          <option value="auto" {% if settings.dark_mode == 'auto' %}selected{% endif %}>Auto (follow system)</option>
+        </select>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 20px; margin-bottom: 12px;">Currency</h3>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Default Currency</label>
+        <select name="default_currency">
+          {% for cur in currencies %}
+          <option value="{{ cur.code }}" {% if settings.default_currency == cur.code or (not settings.default_currency and cur.is_default) %}selected{% endif %}>{{ cur.code }} ({{ cur.symbol }} {{ cur.name }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="align-self: flex-end;">
+        <a href="/settings/currencies" class="btn btn-outline btn-sm">Manage Currencies</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Integrations -->
+  <div class="card">
+    <h2>Integrations</h2>
+
+    <h3>Telegram Configuration</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Configure your Telegram bot. Leave blank to use server environment variables as fallback.
+    </p>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Bot Token</label>
+        <input type="password" name="telegram_bot_token" value="{{ settings.telegram_bot_token or '' }}" placeholder="e.g. 123456:ABC-DEF...">
+      </div>
+      <div class="form-group grow">
+        <label>Group Chat ID</label>
+        <input type="text" name="telegram_group_chat_id" value="{{ settings.telegram_group_chat_id or '' }}" placeholder="e.g. -1001234567890">
+        <div class="field-hint">General group posting is off unless explicitly enabled below.</div>
+      </div>
+      <div class="form-group grow">
+        <label>Sales Telegram Group ID</label>
+        <input type="text" name="sales_telegram_chat_id" value="{{ settings.sales_telegram_chat_id or '' }}" placeholder="Sales Team group ID">
+        <div class="field-hint">New leads, lead reminders, and Telegram lead edits go here.</div>
+      </div>
+      <div class="form-group grow">
+        <label>Lead Fallback Chat ID</label>
+        <input type="text" name="lead_reminder_chat_id" value="{{ settings.lead_reminder_chat_id or '' }}" placeholder="Private owner chat or older sales group ID">
+        <div class="field-hint">Used only if Sales Telegram Group ID is blank. Never falls back to the general group.</div>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group">
+        <label>General Group Reports</label>
+        <select name="general_telegram_notifications_enabled">
+          <option value="0" {% if settings.general_telegram_notifications_enabled != '1' %}selected{% endif %}>Off</option>
+          <option value="1" {% if settings.general_telegram_notifications_enabled == '1' %}selected{% endif %}>On</option>
+        </select>
+        <div class="field-hint">Keep off so reports do not post in General group.</div>
+      </div>
+      <div class="form-group">
+        <label>Check-in/out to General</label>
+        <select name="telegram_general_attendance_enabled">
+          <option value="1" {% if settings.telegram_general_attendance_enabled != '0' %}selected{% endif %}>On</option>
+          <option value="0" {% if settings.telegram_general_attendance_enabled == '0' %}selected{% endif %}>Off</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Celebrations to General</label>
+        <select name="telegram_general_celebrations_enabled">
+          <option value="1" {% if settings.telegram_general_celebrations_enabled != '0' %}selected{% endif %}>On</option>
+          <option value="0" {% if settings.telegram_general_celebrations_enabled == '0' %}selected{% endif %}>Off</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group">
+        <label>Monthly Attendance Report</label>
+        <select name="monthly_attendance_enabled">
+          <option value="0" {% if settings.monthly_attendance_enabled != '1' %}selected{% endif %}>Off</option>
+          <option value="1" {% if settings.monthly_attendance_enabled == '1' %}selected{% endif %}>On</option>
+        </select>
+      </div>
+      <div class="form-group grow">
+        <label>Monthly Attendance Chat ID</label>
+        <input type="text" name="monthly_attendance_chat_id" value="{{ settings.monthly_attendance_chat_id or '' }}" placeholder="Dedicated HR/admin group ID">
+        <div class="field-hint">Completed-month reports go only here on the 1st. Leave off to avoid Telegram posting.</div>
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group">
+        <label>Daily Staff Report</label>
+        <select name="daily_staff_report_enabled">
+          <option value="0" {% if settings.daily_staff_report_enabled != '1' %}selected{% endif %}>Off</option>
+          <option value="1" {% if settings.daily_staff_report_enabled == '1' %}selected{% endif %}>On</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Daily Report Time</label>
+        <input type="time" name="daily_staff_report_time" value="{{ settings.daily_staff_report_time or '09:30' }}">
+        <div class="field-hint">Sends yesterday's staff activity report at this time.</div>
+      </div>
+      <div class="form-group grow">
+        <label>Daily Staff Report Chat ID</label>
+        <input type="text" name="daily_staff_report_chat_id" value="{{ settings.daily_staff_report_chat_id or '' }}" placeholder="Defaults to Monthly Attendance Chat ID">
+        <div class="field-hint">Dedicated HR/admin group only. Blank uses the monthly attendance chat ID.</div>
+      </div>
+    </div>
+    <div style="font-size: 12px; color: var(--text-light); margin-bottom: 12px;">
+      Status: {% if telegram_active %}<span class="badge badge-done">Active</span> ({{ telegram_source }}){% else %}<span class="badge badge-pending">Not Configured</span>{% endif %}
+    </div>
+
+    <details style="margin-bottom: 16px;">
+      <summary>Telegram Setup Guide</summary>
+      <div>
+        <ol style="font-size: 13px; line-height: 2; padding-left: 20px; margin: 0;">
+          <li>Message <strong>@BotFather</strong> on Telegram &rarr; <code>/newbot</code> &rarr; copy the token</li>
+          <li>Each employee messages the bot &rarr; it replies with their Chat ID</li>
+          <li>Add the bot to your group chat for check-in notifications</li>
+          <li>Add the bot to <strong>Sales Team</strong>, then send <code>/salesgroup</code> in that group to connect lead notifications and commands</li>
+          <li>Add the bot to <strong>HR Team</strong>, then send <code>/hrgroup</code> in that group to connect monthly attendance and daily staff reports</li>
+          <li>To remove a mistaken HR report post, reply to that bot message with <code>/deletereport</code></li>
+          <li>Paste the Bot Token and Group Chat ID above, then click Save Settings</li>
+          <li>Alternatively, set via server environment variables as a fallback</li>
+        </ol>
+      </div>
+    </details>
+
+    <h3 style="margin-top: 20px; margin-bottom: 12px;">SMTP Email Configuration</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Configure SMTP to send invoices and notifications via email.
+    </p>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>SMTP Host</label>
+        <input type="text" name="smtp_host" value="{{ settings.smtp_host or '' }}" placeholder="smtp.gmail.com">
+      </div>
+      <div class="form-group grow">
+        <label>SMTP Port</label>
+        <input type="number" name="smtp_port" value="{{ settings.smtp_port or 587 }}" placeholder="587">
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>SMTP Username</label>
+        <input type="text" name="smtp_user" value="{{ settings.smtp_user or '' }}" placeholder="user@gmail.com">
+      </div>
+      <div class="form-group grow">
+        <label>SMTP Password</label>
+        <input type="password" name="smtp_password" value="{{ settings.smtp_password or '' }}" placeholder="App password">
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>From Email</label>
+        <input type="email" name="smtp_from" value="{{ settings.smtp_from or '' }}" placeholder="noreply@company.com">
+      </div>
+      <div class="form-group grow">
+        <label>Email Notifications Enabled</label>
+        <select name="smtp_enabled">
+          <option value="1" {% if settings.smtp_enabled == '1' %}selected{% endif %}>Yes</option>
+          <option value="0" {% if settings.smtp_enabled != '1' %}selected{% endif %}>No</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary" style="margin-bottom: 20px;">Save Settings</button>
+</form>
+
+<!-- 3. REST API -->
+<div class="card">
+  <h2>REST API</h2>
+  <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+    Use the API key below with the <code>X-API-Key</code> header for all requests.
+  </p>
+  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+    <input type="text" id="deployKeyField" value="{{ settings.deploy_key }}" readonly
+           style="font-family: monospace; font-size: 13px; background: var(--surface-2); cursor: text;">
+    <button class="btn btn-sm btn-outline" onclick="navigator.clipboard.writeText(document.getElementById('deployKeyField').value); this.textContent='Copied!'; setTimeout(()=>this.textContent='Copy', 2000);">Copy</button>
+  </div>
+
+  <div style="margin-top: 20px;">
+    <h3>API Endpoints</h3>
+
+    <details>
+      <summary>Employees (5 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/employees</code></td><td>List all</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/employees/{id}</code></td><td>Get one</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/employees</code></td><td>Create (name, username, password, role)</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/employees/{id}</code></td><td>Update</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/employees/{id}</code></td><td>Delete</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Roles &amp; Permissions (2 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/roles</code></td><td>List roles, labels, permissions, and allowed matrix</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/roles/{role}/permissions</code></td><td>Update role permissions, including sales lead permissions</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Lead Intake (9 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/lead-intake/sources</code></td><td>List reusable intake sources and endpoint URLs</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/lead-intake/sources</code></td><td>Create website, Telegram, or WhatsApp intake source</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/lead-intake/sources/{id}</code></td><td>Update source defaults, owner, CORS origins, success message</td></tr>
+        <tr><td><span class="badge badge-pending">POST</span></td><td><code>/api/v1/lead-intake/sources/{id}/rotate</code></td><td>Rotate public token and endpoint URL</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/lead-intake/sources/{id}</code></td><td>Delete intake source</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/lead-intake/{token}</code></td><td>Public website form submission endpoint</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/lead-intake/telegram/{token}</code></td><td>Telegram bot webhook for /lead messages</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/lead-intake/whatsapp/{token}</code></td><td>WhatsApp Cloud API webhook verification</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/lead-intake/whatsapp/{token}</code></td><td>WhatsApp inbound message webhook for lead messages</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Leads &amp; Follow-ups (15 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/leads</code></td><td>List leads (?stage=&amp;assigned_to=&amp;due=&amp;q=&amp;limit=)</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/leads/stats</code></td><td>Pipeline counts, stage values, due/today/unassigned totals</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/leads/stages</code></td><td>Lead stage values and labels</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/leads/{id}</code></td><td>Get lead with follow-ups and stage history</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/leads/{id}/history</code></td><td>List stage history</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/leads</code></td><td>Create lead, optionally with first follow-up</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/leads/{id}</code></td><td>Update lead fields or stage</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/leads/{id}/stage</code></td><td>Move lead to enquiry, discussion, confirmation, on_hold, or converted when already converted</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/leads/{id}</code></td><td>Delete lead and its follow-ups/history</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/leads/{id}/followups</code></td><td>List lead follow-ups</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/leads/{id}/followups</code></td><td>Add reminder (note + due_at or date/time)</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/leads/followups/{id}</code></td><td>Update reminder note, due time, status, Telegram sent time</td></tr>
+        <tr><td><span class="badge badge-pending">POST</span></td><td><code>/api/v1/leads/followups/{id}/complete</code></td><td>Mark reminder done or cancelled</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/leads/followups/{id}</code></td><td>Delete reminder</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/leads/{id}/convert</code></td><td>Convert lead to client and cancel pending reminders</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Clients (5 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/clients</code></td><td>List all</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/clients/{id}</code></td><td>Get one</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/clients</code></td><td>Create (name, company, email, etc.)</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/clients/{id}</code></td><td>Update</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/clients/{id}</code></td><td>Delete</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Projects (5 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/projects</code></td><td>List all</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/projects/{id}</code></td><td>Get one</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/projects</code></td><td>Create (name, client_id, status, etc.)</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/projects/{id}</code></td><td>Update</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/projects/{id}</code></td><td>Delete</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Recurring Tasks (4 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/tasks/recurring</code></td><td>List all (?employee_id=)</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/tasks/recurring</code></td><td>Create (employee_id, title, project_id, frequency)</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/tasks/recurring/{id}</code></td><td>Update</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/tasks/recurring/{id}</code></td><td>Delete</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>One-Time Tasks (4 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/tasks/oneoff</code></td><td>List all (?employee_id=)</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/tasks/oneoff</code></td><td>Create (employee_id, title, project_id)</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/tasks/oneoff/{id}</code></td><td>Update; project_id required when completing</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/tasks/oneoff/{id}</code></td><td>Delete</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Invoices (5 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/invoices</code></td><td>List all</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/invoices/{id}</code></td><td>Get one</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/invoices</code></td><td>Create</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/invoices/{id}</code></td><td>Update</td></tr>
+        <tr><td><span class="badge badge-deleted">DEL</span></td><td><code>/api/v1/invoices/{id}</code></td><td>Delete</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Attendance (2 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/attendance</code></td><td>List records (?employee_id=&amp;from=&amp;to=)</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/attendance</code></td><td>Check in/out (employee_id, action)</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Leaves (4 endpoints)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/leave-types</code></td><td>List active leave types</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/leaves</code></td><td>List leave requests (?employee_id=&amp;status=&amp;from=&amp;to=)</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/leaves</code></td><td>Create leave request</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/leaves/{id}/status</code></td><td>Approve, reject, or cancel</td></tr>
+      </table>
+    </details>
+
+    <details>
+      <summary>Other (celebrations, notifications, activity, settings, comments, deploy)</summary>
+      <table>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/celebrations?days=30</code></td><td>Upcoming birthdays &amp; anniversaries</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/notifications?employee_id=</code></td><td>List notifications</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/send-notification</code></td><td>Send notification (employee_id, message)</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/activity-log</code></td><td>Recent activity</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/settings</code></td><td>Get app settings</td></tr>
+        <tr><td><span class="badge badge-pending">PUT</span></td><td><code>/api/v1/settings</code></td><td>Update app settings</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/v1/comments?task_type=&amp;task_id=</code></td><td>List comments</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/v1/comments</code></td><td>Add comment (task_type, task_id, employee_id, comment)</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/health</code></td><td>Health check (no auth)</td></tr>
+        <tr><td><span class="badge badge-done">GET</span></td><td><code>/api/health/full</code></td><td>Deep health check with DB quick_check, scheduler lock, and disk</td></tr>
+        <tr><td><span class="badge badge-recurring">POST</span></td><td><code>/api/deploy</code></td><td>Deploy files (base64 body)</td></tr>
+      </table>
+    </details>
+  </div>
+
+  <details style="margin-top: 16px;">
+    <summary>Example: curl</summary>
+    <div>
+      <pre style="background: var(--surface-2); padding: 12px; border-radius: 6px; font-size: 12px; overflow-x: auto; margin: 0;">curl -H "X-API-Key: YOUR_KEY" http://yourdomain.com/api/v1/employees
+
+curl -X POST -H "X-API-Key: YOUR_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"John","username":"john","password":"pass123","role":"employee"}' \
+  http://yourdomain.com/api/v1/employees</pre>
+    </div>
+  </details>
+</div>
+
+<!-- 4. Timezone -->
+<div class="card">
+  <h2>Timezone</h2>
+  <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+    Current timezone: <strong>{{ settings.timezone or 'Asia/Kolkata' }}</strong>. Used for reminders (8 AM / 5 PM), attendance timestamps, and dashboard dates.
+  </p>
+  <form method="POST" action="/admin/settings/timezone" class="form-row">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-group grow">
+      <select name="timezone" style="width: 100%;">
+        {% for tz in ['Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Hong_Kong',
+                      'US/Eastern', 'US/Central', 'US/Mountain', 'US/Pacific',
+                      'Europe/London', 'Europe/Paris', 'Europe/Berlin',
+                      'Australia/Sydney', 'Pacific/Auckland', 'UTC'] %}
+        <option value="{{ tz }}" {% if tz == settings.timezone %}selected{% endif %}>{{ tz }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Update Timezone</button>
+  </form>
+</div>
+
+<!-- 5. Company Profiles -->
+<div class="card">
+  <h2>White-Label Company Profiles</h2>
+  <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
+    Create multiple company profiles for white-label invoicing. When creating an invoice, choose which company name appears.
+  </p>
+  <a href="/settings/company-profiles" class="btn btn-outline btn-sm">Manage Company Profiles</a>
+</div>
+
+<!-- 6. Reviews Setup -->
+<div class="card">
+  <h2>Project Reviews</h2>
+  <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px;">
+    Configure review frequency and participants for each project. Reviews ensure regular check-ins with managers.
+  </p>
+  <a href="/reviews/setup" class="btn btn-outline btn-sm">Review Setup</a>
+  <a href="/reviews" class="btn btn-outline btn-sm" style="margin-left: 6px;">View Reviews</a>
+</div>
+
+<!-- 7. System Info -->
+<div class="card">
+  <h2>System Info</h2>
+  <table>
+    <tr><td style="font-weight: 600;">App Version</td><td>{{ app_version }}</td></tr>
+    <tr><td style="font-weight: 600;">Database</td><td>SQLite (tasks.db)</td></tr>
+    <tr><td style="font-weight: 600;">Server</td><td>Gunicorn + Nginx</td></tr>
+    <tr><td style="font-weight: 600;">Roles</td><td>employee, sales, accountant, subadmin, manager, admin, superadmin</td></tr>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Reviews - {{ app_name }}{% endblock %}
+{% block content %}
+<style>
+  .review-card { border-left: 4px solid var(--border); padding: 16px; margin-bottom: 12px; border-radius: 0 8px 8px 0; background: var(--card); }
+  .review-card.pending { border-left-color: var(--amber); }
+  .review-card.overdue { border-left-color: var(--rose); background: var(--rose-soft); }
+  .review-card.completed { border-left-color: var(--sage); }
+  .review-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-light); margin-top: 4px; }
+  .review-meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .mom-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-top: 8px; font-size: 13px; white-space: pre-wrap; }
+  .review-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+</style>
+
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Reviews</h1>
+  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+    <form method="GET" action="/reviews" class="form-row" style="gap: 8px;">
+      <select name="project" onchange="this.form.submit()" style="width: auto; font-size: 13px;">
+        <option value="0">All Projects</option>
+        {% for p in projects %}
+        <option value="{{ p.id }}" {% if project_filter == p.id %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="status" onchange="this.form.submit()" style="width: auto; font-size: 13px;">
+        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+        <option value="overdue" {% if status_filter == 'overdue' %}selected{% endif %}>Overdue</option>
+        <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+      </select>
+    </form>
+    {% if can_manage %}
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('scheduleModal').classList.add('active')">+ Schedule Review</button>
+    <a href="/reviews/setup" class="btn btn-outline btn-sm">Review Setup</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Stats -->
+{% set pending_count = reviews|selectattr('status', 'eq', 'pending')|list|length %}
+{% set overdue_count = reviews|selectattr('status', 'eq', 'overdue')|list|length %}
+{% set completed_count = reviews|selectattr('status', 'eq', 'completed')|list|length %}
+<div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+  <div class="stat-card" style="padding: 10px 20px; margin: 0;">
+    <div class="stat-value" style="font-size: 22px; color: var(--amber);">{{ pending_count }}</div>
+    <div class="stat-label">Pending</div>
+  </div>
+  <div class="stat-card" style="padding: 10px 20px; margin: 0;">
+    <div class="stat-value" style="font-size: 22px; color: var(--rose);">{{ overdue_count }}</div>
+    <div class="stat-label">Overdue</div>
+  </div>
+  <div class="stat-card" style="padding: 10px 20px; margin: 0;">
+    <div class="stat-value" style="font-size: 22px; color: var(--sage);">{{ completed_count }}</div>
+    <div class="stat-label">Completed</div>
+  </div>
+  <div class="stat-card" style="padding: 10px 20px; margin: 0;">
+    <div class="stat-value" style="font-size: 22px;">{{ reviews|length }}</div>
+    <div class="stat-label">Total</div>
+  </div>
+</div>
+
+<!-- Overdue Reviews (highlighted) -->
+{% set overdue_reviews = reviews|selectattr('status', 'eq', 'overdue')|list %}
+{% if overdue_reviews %}
+<div class="card" style="border: 2px solid var(--rose); margin-bottom: 20px;">
+  <h2 style="color: var(--rose); margin-bottom: 12px;">Overdue Reviews</h2>
+  {% for rev in overdue_reviews %}
+  <div class="review-card overdue">
+    <div class="flex-between">
+      <div>
+        <strong style="font-size: 15px;">{{ rev.project_name }}</strong>
+        <span class="badge badge-deleted" style="margin-left: 8px;">OVERDUE</span>
+      </div>
+      <span style="font-size: 13px; color: var(--rose); font-weight: 600;">Due: {{ rev.scheduled_date }}</span>
+    </div>
+    <div class="review-meta">
+      <span>{{ rev.frequency|capitalize }} review</span>
+      <span>Time: {{ rev.scheduled_time }}</span>
+      <span>Participants: {{ rev.participant_names|join(', ') or 'None assigned' }}</span>
+    </div>
+    {% if can_manage %}
+    <div class="review-actions">
+      <button class="btn btn-success btn-sm" onclick="openCompleteModal({{ rev.id }}, '{{ rev.project_name|e }}')">Complete + MOM</button>
+      <form method="POST" action="/reviews/{{ rev.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this review?');">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);">Delete</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Pending Reviews -->
+{% set pending_reviews = reviews|selectattr('status', 'eq', 'pending')|list %}
+{% if pending_reviews %}
+<div class="card" style="margin-bottom: 20px;">
+  <h2 style="margin-bottom: 12px;">Upcoming Reviews</h2>
+  {% for rev in pending_reviews %}
+  <div class="review-card pending">
+    <div class="flex-between">
+      <div>
+        <strong style="font-size: 15px;">{{ rev.project_name }}</strong>
+        <span class="badge badge-pending" style="margin-left: 8px;">Pending</span>
+      </div>
+      <span style="font-size: 13px; font-weight: 600;">{{ rev.scheduled_date }} at {{ rev.scheduled_time }}</span>
+    </div>
+    <div class="review-meta">
+      <span>{{ rev.frequency|capitalize }} review</span>
+      <span>Participants: {{ rev.participant_names|join(', ') or 'None assigned' }}</span>
+      {% if rev.scheduled_date == today_str %}
+        <span style="color: var(--primary); font-weight: 600;">Today!</span>
+      {% endif %}
+    </div>
+    {% if can_manage %}
+    <div class="review-actions">
+      <button class="btn btn-success btn-sm" onclick="openCompleteModal({{ rev.id }}, '{{ rev.project_name|e }}')">Complete + MOM</button>
+      <form method="POST" action="/reviews/{{ rev.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this review?');">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);">Delete</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Completed Reviews -->
+{% set completed_reviews = reviews|selectattr('status', 'eq', 'completed')|list %}
+{% if completed_reviews %}
+<div class="card">
+  <h2 style="margin-bottom: 12px;">Completed Reviews</h2>
+  {% for rev in completed_reviews %}
+  <div class="review-card completed">
+    <div class="flex-between">
+      <div>
+        <strong style="font-size: 15px;">{{ rev.project_name }}</strong>
+        <span class="badge badge-done" style="margin-left: 8px;">Completed</span>
+      </div>
+      <span style="font-size: 13px; color: var(--text-light);">{{ rev.scheduled_date }}</span>
+    </div>
+    <div class="review-meta">
+      <span>{{ rev.frequency|capitalize }} review</span>
+      <span>Completed: {{ rev.completed_at or '&mdash;' }}</span>
+      <span>Participants: {{ rev.participant_names|join(', ') or 'None assigned' }}</span>
+    </div>
+    {% if rev.mom %}
+    <div class="mom-box">
+      <strong style="font-size: 12px; color: var(--text-light); display: block; margin-bottom: 4px;">Minutes of Meeting:</strong>
+      {{ rev.mom }}
+    </div>
+    {% endif %}
+    {% if can_manage %}
+    <div class="review-actions">
+      <form method="POST" action="/reviews/{{ rev.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this review record?');">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger); font-size: 11px;">Delete</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not reviews %}
+<div class="card" style="text-align: center; color: var(--text-light); padding: 40px;">
+  {% if can_manage %}
+    No reviews yet. <a href="/reviews/setup">Set up review schedules</a> for your projects, then schedule reviews.
+  {% else %}
+    No reviews scheduled yet. Your manager will set these up.
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Schedule Review Modal -->
+<div class="modal-overlay" id="scheduleModal">
+  <div class="modal">
+    <h3>Schedule a Review</h3>
+    <form method="POST" action="/reviews/schedule">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Project (must have review config)</label>
+        <select name="config_id" required>
+          <option value="">Select project...</option>
+          {% for cfg in configs %}
+          <option value="{{ cfg.id }}">{{ cfg.project_name }} ({{ cfg.frequency }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row" style="margin-bottom: 12px;">
+        <div class="form-group grow">
+          <label>Date</label>
+          <input type="date" name="scheduled_date" required value="{{ today_str }}">
+        </div>
+        <div class="form-group grow">
+          <label>Time</label>
+          <input type="time" name="scheduled_time" value="10:00">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('scheduleModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Schedule</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Complete Review Modal -->
+<div class="modal-overlay" id="completeModal">
+  <div class="modal">
+    <h3>Complete Review: <span id="completeProjectName"></span></h3>
+    <form method="POST" id="completeForm">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Minutes of Meeting (MOM) <span style="color: var(--danger);">*</span></label>
+        <textarea name="mom" rows="8" required placeholder="Enter the key discussion points, decisions made, action items, and next steps from this review..." style="width: 100%; font-size: 13px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; resize: vertical;"></textarea>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('completeModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Mark Complete</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openCompleteModal(reviewId, projectName) {
+  document.getElementById('completeProjectName').textContent = projectName;
+  document.getElementById('completeForm').action = '/reviews/' + reviewId + '/complete';
+  document.getElementById('completeModal').classList.add('active');
+}
+</script>
+{% endblock %}

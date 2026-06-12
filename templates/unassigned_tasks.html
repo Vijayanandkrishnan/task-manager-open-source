@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Unlinked Tasks - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <div>
+    <a href="/reports" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; Reports</a>
+    <h1 style="margin-top: 4px;">Unlinked Tasks</h1>
+    <div style="color: var(--text-light); font-size: 13px;">Link existing tasks to projects so they appear in reports.</div>
+  </div>
+</div>
+
+{% if not projects %}
+<div class="card">
+  <p>No active projects yet. <a href="/projects">Create one first</a>.</p>
+</div>
+{% endif %}
+
+<!-- Bulk assign -->
+{% if recurring_tasks or oneoff_tasks %}
+<div class="card">
+  <h2>Bulk Link</h2>
+  <form method="POST" action="/tasks/bulk-assign" id="bulkForm">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-row" style="gap: 8px; margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Project</label>
+        <select name="project_id" required>
+          <option value="">— Select Project —</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}">{{ p.name }}{% if p.client_name %} ({{ p.client_name }}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="align-self:end;">
+        <button type="submit" class="btn btn-primary">Link Selected</button>
+      </div>
+    </div>
+
+    {% if recurring_tasks %}
+    <h3 style="margin-top:16px;">Recurring Tasks ({{ recurring_tasks|length }})</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px;"><input type="checkbox" onclick="toggleAll(this, 'rec')"></th>
+          <th>Title</th>
+          <th>Employee</th>
+          <th>Frequency</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in recurring_tasks %}
+        <tr>
+          <td><input type="checkbox" class="rec-check" name="recurring_ids" value="{{ t.id }}"></td>
+          <td><strong>{{ t.title }}</strong>{% if t.description %}<div style="font-size:11px;color:var(--text-light);">{{ t.description[:80] }}</div>{% endif %}</td>
+          <td>{{ t.employee_name }}</td>
+          <td style="font-size:12px;">{{ t.frequency }}</td>
+          <td style="font-size:12px;color:var(--text-light);">{{ t.created_at[:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if oneoff_tasks %}
+    <h3 style="margin-top:16px;">One-Time Tasks ({{ oneoff_tasks|length }})</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px;"><input type="checkbox" onclick="toggleAll(this, 'one')"></th>
+          <th>Title</th>
+          <th>Employee</th>
+          <th>Status</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in oneoff_tasks %}
+        <tr>
+          <td><input type="checkbox" class="one-check" name="oneoff_ids" value="{{ t.id }}"></td>
+          <td><strong>{{ t.title }}</strong>{% if t.description %}<div style="font-size:11px;color:var(--text-light);">{{ t.description[:80] }}</div>{% endif %}</td>
+          <td>{{ t.employee_name }}</td>
+          <td>{% if t.completed %}<span class="badge badge-done">Done</span>{% else %}<span class="badge badge-oneoff">Pending</span>{% endif %}</td>
+          <td style="font-size:12px;color:var(--text-light);">{{ t.created_at[:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <div style="text-align:center;padding:30px;color:var(--text-light);">
+    All tasks are assigned to projects.
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleAll(master, cls) {
+  document.querySelectorAll('.' + cls + '-check').forEach(function(cb) { cb.checked = master.checked; });
+}
+</script>
+{% endblock %}

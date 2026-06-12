@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Dashboard</h1>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span style="font-size: 14px; color: var(--text-light);">{{ today }}</span>
+    <a href="/admin/export-data" class="btn btn-sm btn-outline">Export All Data</a>
+  </div>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ checked_in }}/{{ total_employees }}</div>
+    <div class="stat-label">Checked In</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ today_completions }}</div>
+    <div class="stat-label">Tasks Done Today</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ pending_oneoff }}</div>
+    <div class="stat-label">Pending Tasks</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ total_recurring }}</div>
+    <div class="stat-label">Total Recurring</div>
+  </div>
+</div>
+
+<!-- Two column grid -->
+<div class="grid-2">
+  <!-- Team Attendance Today -->
+  <div class="card">
+    <div class="flex-between" style="margin-bottom: 12px;">
+      <h2>Team Attendance Today</h2>
+      <span class="badge badge-done">{{ checked_in }}/{{ total_employees }}</span>
+    </div>
+    {% for emp in employees %}
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border);">
+      {% if attendance_today.get(emp.id) == 'checkin' %}
+        <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--success); flex-shrink: 0;" title="Checked in"></span>
+      {% else %}
+        <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--danger); flex-shrink: 0;" title="Absent"></span>
+      {% endif %}
+      <span style="font-size: 14px;">{{ emp.name }}</span>
+    </div>
+    {% endfor %}
+    {% if not employees %}
+    <p style="color: var(--text-light); font-size: 14px; text-align: center; padding: 12px;">No employees yet</p>
+    {% endif %}
+  </div>
+
+  <!-- Upcoming Celebrations -->
+  <div class="card">
+    <h2 style="margin-bottom: 12px;">Upcoming Celebrations</h2>
+    {% if celebrations %}
+    {% for c in celebrations %}
+    <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border);">
+      <span style="font-size: 20px;">
+        {% if c.type == 'Birthday' %}&#127874;{% elif c.type == 'Work Anniversary' %}&#127942;{% elif c.type == 'Wedding Anniversary' %}&#128141;{% endif %}
+      </span>
+      <div style="flex: 1;">
+        <div style="font-weight: 600; font-size: 14px;">{{ c.name }}</div>
+        <div style="font-size: 12px; color: var(--text-light);">{{ c.type }} &middot; {{ c.date }}</div>
+      </div>
+      <span class="badge badge-pending">{% if c.days == 0 %}Today{% else %}{{ c.days }} day{{ 's' if c.days != 1 }}{% endif %}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p style="color: var(--text-light); font-size: 14px; text-align: center; padding: 12px;">No upcoming celebrations</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if session.get('role') == 'superadmin' %}
+<!-- Unpaid Invoices Summary -->
+{% if unpaid %}
+<div class="card">
+  <h2 style="margin-bottom: 12px;">Unpaid Invoices</h2>
+  <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+    {% for row in unpaid %}
+    <div class="stat-card" style="flex: 1; min-width: 140px;">
+      <div class="stat-value" style="color: var(--danger);">
+        {{ currency_symbols.get(row.currency, row.currency) }}{{ '%.2f'|format(row.total or 0) }}
+      </div>
+      <div class="stat-label">{{ row.currency }} Unpaid</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Recent Activity -->
+<div class="card">
+  <h2 style="margin-bottom: 12px;">Recent Activity</h2>
+  {% if recent_activity %}
+  <table>
+    <thead>
+      <tr>
+        <th>Employee</th>
+        <th>Action</th>
+        <th>Task</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in recent_activity[:10] %}
+      <tr>
+        <td style="font-weight: 600;">{{ a.employee_name }}</td>
+        <td>
+          <span class="badge {% if a.action == 'completed' %}badge-done{% elif a.action == 'created' %}badge-recurring{% else %}badge-pending{% endif %}">{{ a.action }}</span>
+        </td>
+        <td style="font-size: 13px;">{{ a.task_title or '-' }}</td>
+        <td style="font-size: 12px; color: var(--text-light);">{{ a.created_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: var(--text-light); font-size: 14px; text-align: center; padding: 12px;">No recent activity</p>
+  {% endif %}
+</div>
+{% endblock %}

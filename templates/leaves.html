@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}Leaves - {{ app_name }}{% endblock %}
+{% block content %}
+<style>
+  .leave-shell { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 18px; align-items: start; }
+  .leave-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .leave-form-grid .wide { grid-column: 1 / -1; }
+  .leave-status-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .leave-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .leave-review-note { min-width: 160px; max-width: 220px; }
+  .leave-focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .leave-type-list { display: grid; gap: 8px; }
+  .leave-type-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+  .leave-type-row:last-child { border-bottom: 0; }
+  @media (max-width: 980px) {
+    .leave-shell { grid-template-columns: 1fr; }
+    .leave-review-note { max-width: none; width: 100%; }
+  }
+</style>
+
+<div class="flex-between" style="margin-bottom: 22px;">
+  <div>
+    <h1>Leaves</h1>
+    <p class="page-sub">Applications, approvals, and planned absence.</p>
+  </div>
+  <form method="GET" action="/leaves" class="form-row" style="gap: 8px;">
+    <select name="status" onchange="this.form.submit()" style="width: auto;">
+      <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+      {% for value, label in status_labels.items() %}
+      <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    {% if can_view_team %}
+    <select name="employee" onchange="this.form.submit()" style="width: auto;">
+      <option value="0">All Members</option>
+      {% for emp in team_employees %}
+      <option value="{{ emp.id }}" {% if emp_filter == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <input type="date" name="from" value="{{ from_date }}" onchange="this.form.submit()" style="width: auto;">
+    <input type="date" name="to" value="{{ to_date }}" onchange="this.form.submit()" style="width: auto;">
+  </form>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value">{{ stats.pending }}</div>
+    <div class="stat-sub">{% if can_view_team %}team queue{% else %}your queue{% endif %}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Approved Upcoming</div>
+    <div class="stat-value">{{ stats.approved_upcoming }}</div>
+    <div class="stat-sub">from today onward</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">On Leave Today</div>
+    <div class="stat-value">{{ stats.on_leave_today }}</div>
+    <div class="stat-sub">approved requests</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">My Pending</div>
+    <div class="stat-value">{{ stats.own_pending }}</div>
+    <div class="stat-sub">awaiting decision</div>
+  </div>
+</div>
+
+<div class="leave-shell">
+  <div>
+    {% if can_apply %}
+    <div class="card">
+      <h2>Apply Leave</h2>
+      <form method="POST" action="/leaves/apply">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <div class="leave-form-grid">
+          {% if can_manage %}
+          <div class="form-group wide">
+            <label>Member</label>
+            <select name="employee_id">
+              {% for emp in team_employees %}
+              <option value="{{ emp.id }}" {% if current_employee and current_employee.id == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          <div class="form-group wide">
+            <label>Leave Type</label>
+            <select name="leave_type_id" required>
+              <option value="">Select type...</option>
+              {% for lt in leave_types %}
+              <option value="{{ lt.id }}">{{ lt.name }}{% if not lt.paid %} · unpaid{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>From</label>
+            <input type="date" name="start_date" value="{{ today }}" required>
+          </div>
+          <div class="form-group">
+            <label>To</label>
+            <input type="date" name="end_date" value="{{ today }}" required>
+          </div>
+          <div class="form-group">
+            <label>Start Day</label>
+            <select name="start_day_part">
+              {% for value, label in day_parts.items() %}
+              <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>End Day</label>
+            <select name="end_day_part">
+              {% for value, label in day_parts.items() %}
+              <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group wide">
+            <label>Reason</label>
+            <textarea name="reason" required placeholder="Reason for leave"></textarea>
+          </div>
+          <div class="form-group wide">
+            <label>Handover Notes</label>
+            <textarea name="handover_notes" placeholder="Pending work, backup owner, client notes"></textarea>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Submit Request</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if can_manage %}
+    <div class="card">
+      <h2>Leave Types</h2>
+      <form method="POST" action="/leaves/types/add" class="form-row" style="align-items: flex-end;">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <div class="form-group grow" style="margin-bottom: 0;">
+          <label>Name</label>
+          <input type="text" name="name" placeholder="Comp Off">
+        </div>
+        <div class="form-group" style="margin-bottom: 0; min-width: 110px;">
+          <label>Pay</label>
+          <select name="paid">
+            <option value="1">Paid</option>
+            <option value="0">Unpaid</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-outline">Add</button>
+      </form>
+      <div class="leave-type-list" style="margin-top: 12px;">
+        {% for lt in all_leave_types %}
+        <div class="leave-type-row">
+          <div>
+            <div style="font-weight: 700;">{{ lt.name }}</div>
+            <div style="font-size: 12px; color: var(--ink-3);">{{ lt.code }} · {% if lt.paid %}paid{% else %}unpaid{% endif %}</div>
+          </div>
+          <form method="POST" action="/leaves/types/{{ lt.id }}/toggle">
+            <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+            <button type="submit" class="btn btn-sm {% if lt.active %}btn-outline{% else %}btn-primary{% endif %}">
+              {% if lt.active %}Disable{% else %}Enable{% endif %}
+            </button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="flex-between" style="margin-bottom: 12px;">
+      <h2 style="margin: 0;">Requests</h2>
+      <span class="badge">{{ leave_requests|length }} shown</span>
+    </div>
+
+    {% if leave_requests %}
+    <table>
+      <thead>
+        <tr>
+          {% if can_view_team %}<th>Member</th>{% endif %}
+          <th>Dates</th>
+          <th>Type</th>
+          <th>Days</th>
+          <th>Status</th>
+          <th>Reason</th>
+          <th>Decision</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in leave_requests %}
+        <tr {% if focus_id == req.id %}class="leave-focus"{% endif %}>
+          {% if can_view_team %}
+          <td>
+            <div style="font-weight: 700;">{{ req.employee_name }}</div>
+            <div style="font-size: 12px; color: var(--ink-3);">{{ req.employee_department or '—' }}</div>
+          </td>
+          {% endif %}
+          <td style="white-space: nowrap;">
+            <div style="font-weight: 700;">{{ req.start_date }}</div>
+            <div style="font-size: 12px; color: var(--ink-3);">
+              {% if req.start_date != req.end_date %}to {{ req.end_date }}{% else %}{{ day_parts.get(req.start_day_part, 'Full day') }}{% endif %}
+            </div>
+          </td>
+          <td>
+            <span class="badge {% if req.paid %}badge-done{% else %}badge-on-hold{% endif %}">{{ req.type_name }}</span>
+          </td>
+          <td style="font-weight: 700;">{{ req.total_days }}</td>
+          <td>
+            <span class="badge {{ status_badges.get(req.status, 'badge-draft') }}">{{ status_labels.get(req.status, req.status|title) }}</span>
+          </td>
+          <td style="min-width: 220px;">
+            <div>{{ req.reason }}</div>
+            {% if req.handover_notes %}
+            <div style="font-size: 12px; color: var(--ink-3); margin-top: 4px;">{{ req.handover_notes }}</div>
+            {% endif %}
+          </td>
+          <td style="min-width: 160px;">
+            {% if req.reviewed_at %}
+            <div style="font-weight: 700;">{{ req.reviewer_name or 'Reviewed' }}</div>
+            <div style="font-size: 12px; color: var(--ink-3);">{{ req.reviewed_at }}</div>
+            {% if req.review_note %}
+            <div style="font-size: 12px; color: var(--ink-3); margin-top: 4px;">{{ req.review_note }}</div>
+            {% endif %}
+            {% else %}
+            <span style="color: var(--ink-3);">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="leave-actions">
+              {% if can_manage and req.status == 'pending' %}
+              <form method="POST" action="/leaves/{{ req.id }}/approve" class="leave-actions">
+                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                <input type="text" name="review_note" class="leave-review-note" placeholder="Note">
+                <button type="submit" class="btn btn-sm btn-success">Approve</button>
+              </form>
+              <form method="POST" action="/leaves/{{ req.id }}/reject" class="leave-actions">
+                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                <input type="text" name="review_note" class="leave-review-note" placeholder="Reason">
+                <button type="submit" class="btn btn-sm btn-danger">Reject</button>
+              </form>
+              {% endif %}
+              {% if (req.employee_id == session.user_id and req.status == 'pending') or (can_manage and req.status in ['pending','approved']) %}
+              <form method="POST" action="/leaves/{{ req.id }}/cancel" onsubmit="return confirm('Cancel this leave request?');">
+                <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-outline">Cancel</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px 16px; color: var(--ink-3);">
+      No leave requests match this view.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

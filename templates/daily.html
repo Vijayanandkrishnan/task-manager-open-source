@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ day_date }} - Daily View{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <div>
+    <a href="/admin/calendar" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; Calendar</a>
+    <h1 style="margin-top: 4px;">{{ day_date }}</h1>
+  </div>
+  <form method="GET" action="/admin/daily/{{ day_date }}" class="form-row" style="gap: 8px;">
+    <select name="employee" onchange="this.form.submit()" style="width: auto;">
+      <option value="0">All Employees</option>
+      {% for emp in employees %}
+      <option value="{{ emp.id }}" {% if emp_filter == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ recurring|length + oneoff|length }}</div>
+    <div class="stat-label">Tasks Completed</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ total_minutes|round(0)|int }}</div>
+    <div class="stat-label">Total Minutes</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ (total_minutes / 60)|round(1) }}</div>
+    <div class="stat-label">Total Hours</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ logins|length }}</div>
+    <div class="stat-label">Logins</div>
+  </div>
+</div>
+
+{% if logins %}
+<div class="card">
+  <h2>Employees Logged In</h2>
+  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+    {% for login in logins %}
+    <span class="badge badge-done">{{ login.employee_name }}</span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if recurring %}
+<div class="card">
+  <h2>Recurring Tasks Completed</h2>
+  <table>
+    <thead>
+      <tr><th>Employee</th><th>Task</th><th>Description</th><th>Time (min)</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      {% for r in recurring %}
+      <tr>
+        <td><span class="badge badge-done">{{ r.employee_name }}</span></td>
+        <td style="font-weight: 600;">{{ r.title }}</td>
+        <td style="color: var(--text-light); font-size: 13px;">{{ r.task_desc or '' }}</td>
+        <td>{{ r.time_minutes }}</td>
+        <td style="font-size: 13px;">{{ r.notes or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if oneoff %}
+<div class="card">
+  <h2>One-Time Tasks Completed</h2>
+  <table>
+    <thead>
+      <tr><th>Employee</th><th>Task</th><th>Description</th><th>Time (min)</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      {% for o in oneoff %}
+      <tr>
+        <td><span class="badge badge-done">{{ o.employee_name }}</span></td>
+        <td style="font-weight: 600;">{{ o.title }}</td>
+        <td style="color: var(--text-light); font-size: 13px;">{{ o.description or '' }}</td>
+        <td>{{ o.time_minutes }}</td>
+        <td style="font-size: 13px;">{{ o.notes or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not recurring and not oneoff %}
+<div class="card" style="text-align: center; color: var(--text-light); padding: 40px;">
+  No tasks were completed on this day.
+</div>
+{% endif %}
+{% endblock %}

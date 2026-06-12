@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}My Profile - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>My Profile</h1>
+  <button class="btn btn-sm btn-outline" onclick="document.getElementById('pwModal').classList.add('active')">Change Password</button>
+</div>
+
+<div class="card">
+  <h2 style="margin-bottom: 16px;">Profile Information</h2>
+
+  <!-- Profile Image -->
+  <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+    <div style="width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--bg);">
+      {% if employee.profile_image %}
+        <img src="{{ employee.profile_image }}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+      {% else %}
+        <span style="font-size: 32px; font-weight: 700; color: var(--text-light);">{{ employee.name[0]|upper }}</span>
+      {% endif %}
+    </div>
+    <div>
+      <form method="POST" action="/profile/upload-image" enctype="multipart/form-data" style="display: flex; align-items: center; gap: 8px;">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <input type="file" name="profile_image" accept=".jpg,.jpeg,.png,.gif,.webp" required style="font-size: 13px; width: auto;">
+        <button type="submit" class="btn btn-sm btn-primary">Upload</button>
+      </form>
+      <p style="font-size: 11px; color: var(--text-light); margin-top: 4px;">JPG, PNG, GIF, or WebP. Max 2 MB.</p>
+    </div>
+  </div>
+
+  <!-- Read-only fields -->
+  <div class="form-row" style="margin-bottom: 16px;">
+    <div class="form-group grow">
+      <label>Name</label>
+      <div style="padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 14px; color: var(--text);">{{ employee.name }}</div>
+    </div>
+    <div class="form-group grow">
+      <label>Username</label>
+      <div style="padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 14px; color: var(--text);">{{ employee.username }}</div>
+    </div>
+  </div>
+
+  <!-- Editable form -->
+  <form method="POST" action="/profile">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Email</label>
+        <input type="email" name="email" value="{{ employee.email or '' }}" placeholder="you@example.com">
+      </div>
+      <div class="form-group grow">
+        <label>Phone</label>
+        <input type="text" name="phone" value="{{ employee.phone or '' }}" placeholder="+91-9876543210">
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Department</label>
+        <input type="text" name="department" value="{{ employee.department or '' }}" placeholder="e.g. Accounts, Development, Marketing">
+      </div>
+    </div>
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Birthday</label>
+        <input type="date" name="birthday" value="{{ employee.birthday or '' }}">
+      </div>
+      <div class="form-group grow">
+        <label>Joining Date</label>
+        <input type="date" name="joining_date" value="{{ employee.joining_date or '' }}">
+      </div>
+      <div class="form-group grow">
+        <label>Wedding Anniversary</label>
+        <input type="date" name="wedding_anniversary" value="{{ employee.wedding_anniversary or '' }}">
+      </div>
+    </div>
+    <div style="margin-top: 16px;">
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+  </form>
+</div>
+
+<!-- Standards Guide (collapsible) -->
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="var b=document.getElementById('guideBody');var a=document.getElementById('guideArrow');if(b.style.display==='none'){b.style.display='block';a.textContent='\u25B2';}else{b.style.display='none';a.textContent='\u25BC';}">
+    <h2 style="margin:0;">Standards Guide</h2>
+    <span id="guideArrow" style="font-size:14px;color:var(--text-light);">&#9660;</span>
+  </div>
+  <div id="guideBody" style="display:none;margin-top:16px;">
+
+    <h3 style="margin:16px 0 8px;">Task Names</h3>
+    <p style="color:var(--text-light);font-size:13px;margin-bottom:8px;">Start with a <strong>verb</strong>, be specific enough that someone else can do it.</p>
+    <table>
+      <thead><tr><th>Good</th><th>Avoid</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Create Blog for Cross Posting - Offpage - LEC</strong></td><td style="color:var(--danger);">Blog &mdash; too vague</td></tr>
+        <tr><td><strong>Update SEO Meta Tags - Onpage - Acme</strong></td><td style="color:var(--danger);">SEO update stuff</td></tr>
+        <tr><td><strong>Send Monthly Analytics Report - Reporting - TechFlow</strong></td><td style="color:var(--danger);">Report &mdash; says nothing</td></tr>
+        <tr><td><strong>Design Social Media Creatives - SMM - GlobalTrade</strong></td><td style="color:var(--danger);">Social media design work to be done</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:var(--radius);font-size:13px;">
+      <strong>Rules:</strong> Start with a verb (Review, Update, Send, Prepare, Check, Submit) &bull; Be specific &bull; No ALL CAPS &bull; Include the <em>what</em> not the <em>how</em> &bull; Don't put frequency in the name
+    </div>
+
+    <h3 style="margin:20px 0 8px;">Task Descriptions</h3>
+    <table>
+      <thead><tr><th>Type</th><th>What to Write</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Recurring</td><td>Steps or SOP link</td><td>Draft &gt; Review &gt; Publish on WordPress</td></tr>
+        <tr><td>One-Time</td><td>Context + deadline</td><td>Must go live by Friday</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin:20px 0 8px;">Project Names</h3>
+    <p style="color:var(--text-light);font-size:13px;margin-bottom:8px;">One project = one client retainer. Tasks inside handle the service-level detail.</p>
+    <table>
+      <thead><tr><th>Good</th><th>Avoid</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Acme &mdash; Digital Marketing</strong></td><td style="color:var(--danger);">acme website project thing</td></tr>
+        <tr><td><strong>TechFlow &mdash; Monthly Bookkeeping</strong></td><td style="color:var(--danger);">Bookkeeping &mdash; which client?</td></tr>
+        <tr><td><strong>Internal &mdash; Office Operations</strong></td><td style="color:var(--danger);">Office stuff</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:var(--radius);font-size:13px;">
+      <strong>Format:</strong> <code>Client Name &mdash; Retainer Scope</code> &bull; Title case &bull; Under 50 chars &bull; Internal work: prefix with "Internal &mdash;"
+    </div>
+    <div style="margin-top:8px;padding:10px 12px;background:var(--accent-soft);border-radius:var(--r);font-size:12px;border-left:3px solid var(--accent);line-height:1.7;">
+      <strong>Structure:</strong> Project = client engagement. Tasks = actual work.<br>
+      <code>Acme &mdash; Digital Marketing</code><br>
+      &nbsp;&nbsp;&bull; Recurring: Create Blog for Cross Posting - Offpage (weekly)<br>
+      &nbsp;&nbsp;&bull; Recurring: Design Social Media Creatives - SMM (daily)<br>
+      &nbsp;&nbsp;&bull; One-Time: Setup Landing Page - Website
+    </div>
+
+    <h3 style="margin:20px 0 8px;">Client Names</h3>
+    <table>
+      <thead><tr><th>Good</th><th>Avoid</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Acme Industries Pvt Ltd</strong></td><td style="color:var(--danger);">Acme &mdash; could be multiple</td></tr>
+        <tr><td><strong>TechFlow Solutions</strong></td><td style="color:var(--danger);">techflow &mdash; no lowercase</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:var(--radius);font-size:13px;">
+      Full business name &bull; Title case &bull; Include Pvt Ltd / LLP if applicable &bull; No abbreviations unless official (IBM, HCL)
+    </div>
+
+    <h3 style="margin:20px 0 8px;">Time Logging</h3>
+    <table>
+      <thead><tr><th>Guideline</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Log in minutes, be honest</td><td><strong>45 min</strong>, not "1 hour" if it was 45</td></tr>
+        <tr><td>Round to nearest 5 minutes</td><td>25, 30, 35 &mdash; not 27</td></tr>
+        <tr><td>Notes: what was done, not excuses</td><td>Completed 3 of 5 entries, pending client docs</td></tr>
+        <tr><td>Don't batch multiple tasks</td><td>Log each task separately</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin:20px 0 8px;">Standard Departments</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+      <span class="badge badge-done" style="font-size:12px;padding:3px 10px;">Accounts</span>
+      <span class="badge badge-done" style="font-size:12px;padding:3px 10px;">Development</span>
+      <span class="badge badge-done" style="font-size:12px;padding:3px 10px;">Design</span>
+      <span class="badge badge-done" style="font-size:12px;padding:3px 10px;">Marketing</span>
+      <span class="badge badge-done" style="font-size:12px;padding:3px 10px;">Operations</span>
+      <span class="badge badge-done" style="font-size:12px;padding:3px 10px;">Sales</span>
+      <span class="badge badge-done" style="font-size:12px;padding:3px 10px;">HR</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-light);">Use these exact names. Don't create variants (e.g. "Accounting" instead of "Accounts").</p>
+
+    <h3 style="margin:20px 0 8px;">Roles</h3>
+    <table>
+      <thead><tr><th>Role</th><th>Who Gets It</th><th>Access</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-done">Member</span></td><td>Regular team member</td><td>Own tasks, kanban, projects</td></tr>
+        <tr><td><span class="badge badge-sales">Sales</span></td><td>Sales and enquiry owner</td><td>Leads, follow-ups, client conversion</td></tr>
+        <tr><td><span class="badge badge-subadmin">Team Lead</span></td><td>Senior managing sub-team</td><td>+ limited admin view</td></tr>
+        <tr><td><span class="badge badge-admin">Admin</span></td><td>Operations / HR lead</td><td>Full except system config</td></tr>
+        <tr><td><span class="badge badge-superadmin">Owner</span></td><td>Business owner / partner</td><td>Everything</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--text-light);margin-top:6px;">Start everyone as Member. Promote only when they need the access.</p>
+
+    <h3 style="margin:20px 0 8px;">General</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Convention</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td>Email</td><td>Lowercase, no spaces</td><td>john@company.com</td></tr>
+        <tr><td>Phone</td><td>Include country code</td><td>+91-9876543210</td></tr>
+        <tr><td>Notes</td><td>Full sentences</td><td>Client approved the revised quote</td></tr>
+        <tr><td>Amounts</td><td>Numbers only, no symbol</td><td>1500</td></tr>
+      </tbody>
+    </table>
+
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-overlay" id="pwModal">
+  <div class="modal">
+    <h3>Change Password</h3>
+    <form method="POST" action="/change-password">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" name="new_password" placeholder="Min 4 characters" required minlength="4">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('pwModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update Password</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) { if (e.target === el) el.classList.remove('active'); });
+});
+</script>
+{% endblock %}

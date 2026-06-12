@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Notifications - {{ app_name }}{% endblock %}
+{% block content %}
+<h1>Notifications</h1>
+
+{% if not notifications %}
+<div class="card" style="text-align: center; padding: 40px;">
+  <div style="font-size: 32px; margin-bottom: 8px;">&#128276;</div>
+  <p style="color: var(--text-light); font-size: 15px;">No notifications yet</p>
+</div>
+{% else %}
+<div style="display: flex; flex-direction: column; gap: 8px;">
+  {% for n in notifications %}
+  <div class="card" style="padding: 16px;{% if not n.read %} background: var(--accent-soft); border-left: 3px solid var(--accent);{% endif %}">
+    <div class="flex-between" style="margin-bottom: 4px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        {% if n.type == 'info' %}
+          <span class="badge accent"><span class="badge-dot"></span>info</span>
+        {% elif n.type == 'celebration' %}
+          <span class="badge amber"><span class="badge-dot"></span>celebration</span>
+        {% elif n.type == 'task' %}
+          <span class="badge sage"><span class="badge-dot"></span>task</span>
+        {% elif n.type == 'warning' %}
+          <span class="badge rose"><span class="badge-dot"></span>warning</span>
+        {% else %}
+          <span class="badge slate">{{ n.type }}</span>
+        {% endif %}
+        {% if not n.read %}
+          <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary); display: inline-block;" title="Unread"></span>
+        {% endif %}
+      </div>
+      <span style="font-size: 12px; color: var(--text-light);">{{ n.created_at }}</span>
+    </div>
+    <div style="font-size: 14px; margin-top: 6px;">
+      {% if n.link %}
+        <a href="{{ n.link }}" style="color: var(--text); text-decoration: none;">{{ n.message }}</a>
+      {% else %}
+        {{ n.message }}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

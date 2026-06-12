@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Project Report - {{ report.project.name }}</title>
+<style>
+  @page { size: A4; margin: 1.5cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #222; }
+  h1 { font-size: 20px; margin: 0 0 4px 0; }
+  h2 { font-size: 14px; margin: 18px 0 8px 0; border-bottom: 1px solid #999; padding-bottom: 3px; }
+  h3 { font-size: 12px; margin: 12px 0 6px 0; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: left; font-size: 10px; }
+  th { background: #f0f0f0; font-weight: bold; }
+  .muted { color: #666; font-size: 10px; }
+  .right { text-align: right; }
+  .center { text-align: center; }
+  .header { margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #333; }
+  .header table { border: none; margin: 0; }
+  .header td { border: none; padding: 2px 0; }
+  .kpi-grid { width: 100%; margin-bottom: 14px; }
+  .kpi-grid td { border: 1px solid #ddd; padding: 8px; width: 25%; vertical-align: top; }
+  .kpi-label { font-size: 9px; color: #666; text-transform: uppercase; }
+  .kpi-value { font-size: 16px; font-weight: bold; color: #333; margin-top: 2px; }
+  .summary-box { background: #f9f9f9; border-left: 3px solid #3b6bd4; padding: 10px 12px; margin: 12px 0; font-size: 11px; }
+  .bar-wrap { background: #eee; height: 14px; width: 100%; position: relative; }
+  .bar-fill { background: #3b6bd4; height: 14px; }
+  .logo { max-height: 50px; max-width: 180px; }
+</style>
+</head>
+<body>
+
+{% if include_branding and company %}
+<div class="header">
+  <table>
+    <tr>
+      <td style="width: 60%;">
+        {% if company.logo_url %}<img src="{{ company.logo_url }}" class="logo"><br>{% endif %}
+        <strong style="font-size: 14px;">{{ company.name }}</strong><br>
+        <span class="muted">
+          {% if company.address %}{{ company.address }}<br>{% endif %}
+          {% if company.email %}{{ company.email }}{% endif %}
+          {% if company.phone %} &middot; {{ company.phone }}{% endif %}
+        </span>
+      </td>
+      <td style="width: 40%; text-align: right; vertical-align: top;">
+        <strong style="font-size: 13px;">Project Report</strong><br>
+      </td>
+    </tr>
+  </table>
+</div>
+{% endif %}
+
+<h1>{{ report.project.name }}</h1>
+<div class="muted">
+  {% if report.project.client_name %}Client: {{ report.project.client_name }} &middot; {% endif %}
+  Period: {{ report.date_from }} to {{ report.date_to }}
+</div>
+
+{% if summary %}
+<div class="summary-box">
+  {{ summary|replace('\n', '<br>'|safe)|safe }}
+</div>
+{% endif %}
+
+<h2>Summary</h2>
+<table class="kpi-grid">
+  <tr>
+    <td><div class="kpi-label">Total Hours</div><div class="kpi-value">{{ '%.2f'|format(report.total_hours) }}</div></td>
+    <td><div class="kpi-label">Completions</div><div class="kpi-value">{{ report.task_count }}</div></td>
+    <td><div class="kpi-label">Contributors</div><div class="kpi-value">{{ report.contributors }}</div></td>
+    <td><div class="kpi-label">Total Effort Cost</div><div class="kpi-value">{{ report.currency_sym }}{{ '%.2f'|format(report.total_cost) }}</div></td>
+  </tr>
+</table>
+
+<h2>Hours per Contributor</h2>
+<table>
+  <thead>
+    <tr><th>Employee</th><th class="right">Hours</th><th class="right">Rate</th><th class="right">Cost</th><th>Share</th></tr>
+  </thead>
+  <tbody>
+    {% set max_m = report.employees|map(attribute='minutes')|max|default(1) %}
+    {% for e in report.employees %}
+    <tr>
+      <td>{{ e.name }}</td>
+      <td class="right">{{ '%.2f'|format(e.minutes/60) }}</td>
+      <td class="right">{% if e.hourly_rate %}{{ report.currency_sym }}{{ '%.2f'|format(e.hourly_rate) }}{% else %}—{% endif %}</td>
+      <td class="right">{{ report.currency_sym }}{{ '%.2f'|format(e.cost) }}</td>
+      <td><div class="bar-wrap"><div class="bar-fill" style="width: {{ (e.minutes / max_m * 100)|round(0) if max_m else 0 }}%;"></div></div></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if report.tasks %}
+<h2>Top Tasks by Time</h2>
+<table>
+  <thead><tr><th>Task</th><th>Type</th><th class="right">Completions</th><th class="right">Hours</th></tr></thead>
+  <tbody>
+    {% for t in report.tasks[:15] %}
+    <tr>
+      <td>{{ t.title }}</td>
+      <td>{{ t.ttype }}</td>
+      <td class="right">{{ t.count }}</td>
+      <td class="right">{{ '%.2f'|format(t.minutes/60) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>Work Log</h2>
+<table>
+  <thead>
+    <tr><th>Date</th><th>Employee</th><th>Task</th><th>Type</th><th class="right">Min</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    {% for r in report.entries %}
+    <tr>
+      <td>{{ r.date }}</td>
+      <td>{{ r.emp_name }}</td>
+      <td>{{ r.task_title }}</td>
+      <td>{{ r.ttype }}</td>
+      <td class="right">{{ '%.0f'|format(r.minutes) }}</td>
+      <td>{{ r.notes or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if include_branding and company %}
+<div class="muted" style="margin-top: 20px; text-align: center;">
+  Report generated by {{ company.name }}
+</div>
+{% endif %}
+
+</body>
+</html>

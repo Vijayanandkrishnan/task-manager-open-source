@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Permissions - Task Manager{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 28px;">
+  <div>
+    <h1>Role <em>Permissions</em></h1>
+    <p class="page-sub">Choose which features each role can access. Owner always has every permission.</p>
+  </div>
+  <a href="/admin" class="btn btn-outline btn-sm">Back to Team</a>
+</div>
+
+<form method="POST" action="/admin/permissions/save">
+  <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+
+  {% set group_labels = {'personal':'Personal','team':'Team','attendance':'Attendance','insights':'Performance & Audit','clients':'Clients','leads':'Leads','projects':'Projects','invoices':'Invoices','reports':'Reports','reviews':'Reviews','system':'System'} %}
+  {% for group, perms in perm_groups.items() %}
+  <div class="card">
+    <h2 style="margin-bottom: 14px;">{{ group_labels.get(group, group|title) }}</h2>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width: 240px;">Permission</th>
+            {% for r in roles %}
+            <th style="text-align: center; padding: 10px 8px;">{{ role_labels[r] }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for perm_id, label in perms %}
+          <tr>
+            <td>
+              <div style="font-weight: 500;">{{ label }}</div>
+              <div style="font-size: 11px; color: var(--ink-3); font-family: var(--mono); margin-top: 2px;">{{ perm_id }}</div>
+            </td>
+            {% for r in roles %}
+            <td style="text-align: center;">
+              {% if r == 'superadmin' %}
+                <input type="checkbox" checked disabled style="width: 18px; height: 18px; accent-color: var(--ink-4); cursor: not-allowed;">
+                <input type="hidden" name="perm_{{ r }}_{{ perm_id }}" value="1">
+              {% else %}
+                <input type="checkbox" name="perm_{{ r }}_{{ perm_id }}" value="1"
+                       {% if matrix.get(r, {}).get(perm_id) %}checked{% endif %}
+                       style="width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer;">
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div style="display: flex; gap: 10px; align-items: center; margin-top: 24px;">
+    <button type="submit" class="btn btn-primary">Save Permissions</button>
+    <button type="button" class="btn btn-outline" onclick="if(confirm('Reset all permissions to defaults?')) document.getElementById('resetForm').submit();">
+      Reset to Defaults
+    </button>
+    <span style="color: var(--ink-3); font-size: 13px; margin-left: auto;">
+      Owner role always has every permission and cannot be modified.
+    </span>
+  </div>
+</form>
+
+<form id="resetForm" method="POST" action="/admin/permissions/reset" style="display: none;">
+  <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+</form>
+{% endblock %}

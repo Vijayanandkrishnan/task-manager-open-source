@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}Lead Intake - Task Manager{% endblock %}
+{% block content %}
+<style>
+  .intake-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, .8fr);
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    background:
+      linear-gradient(135deg, rgba(37,99,235,.10), rgba(249,115,22,.07) 52%, transparent 78%),
+      var(--surface);
+    margin-bottom: 18px;
+  }
+  .intake-hero h1 { margin-bottom: 8px; }
+  .intake-flow {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .intake-step {
+    min-height: 96px;
+    padding: 14px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+    background: rgba(255,255,255,.58);
+  }
+  .intake-step strong { display: block; margin-bottom: 6px; color: var(--ink); }
+  .intake-step span { color: var(--ink-3); font-size: 12px; }
+  .source-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .source-card {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    background: var(--surface);
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .source-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .source-title { font-size: 16px; font-weight: 800; color: var(--ink); }
+  .source-meta { color: var(--ink-3); font-size: 12px; margin-top: 2px; }
+  .endpoint-box {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    margin: 12px 0;
+  }
+  .endpoint-box code {
+    display: block;
+    padding: 0;
+    background: transparent;
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+  .source-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .source-stat {
+    padding: 10px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+  }
+  .source-stat span { display: block; font-size: 11px; color: var(--ink-3); font-weight: 700; text-transform: uppercase; }
+  .source-stat strong { display: block; margin-top: 4px; font-family: var(--mono); font-size: 16px; color: var(--ink); }
+  .intake-code {
+    margin: 10px 0 0;
+    padding: 12px;
+    border-radius: var(--r-sm);
+    background: #0b1530;
+    color: #f8fafc;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .source-edit {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .source-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .intake-add-card {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    background: var(--surface);
+    padding: 18px;
+  }
+  .copy-btn.copied { background: var(--sage); color: #fff; border-color: var(--sage); }
+  @media (max-width: 860px) {
+    .intake-hero { grid-template-columns: 1fr; }
+    .intake-flow { grid-template-columns: 1fr; }
+    .source-grid { grid-template-columns: 1fr; }
+    .endpoint-box { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="intake-hero">
+  <div>
+    <div class="page-eyebrow">Lead intake</div>
+    <h1>Capture leads from <em>everywhere</em></h1>
+    <p class="page-sub">Website forms, campaign pages, Telegram messages, and WhatsApp Cloud API messages can all create leads in the sales pipeline.</p>
+    <div class="action-row" style="margin-top: 16px;">
+      <a href="/leads" class="btn btn-primary">Open leads</a>
+      <a href="/settings" class="btn btn-outline">Settings</a>
+    </div>
+  </div>
+  <div class="intake-flow" aria-label="Lead intake flow">
+    <div class="intake-step">
+      <strong>1. Source</strong>
+      <span>Create a reusable endpoint for a site, campaign, Telegram, or WhatsApp.</span>
+    </div>
+    <div class="intake-step">
+      <strong>2. Submit</strong>
+      <span>External forms and messages post contact and requirement details.</span>
+    </div>
+    <div class="intake-step">
+      <strong>3. Follow up</strong>
+      <span>The lead lands in your pipeline with owner, stage, and reminder details.</span>
+    </div>
+  </div>
+</div>
+
+<div class="source-grid">
+  {% for source in sources %}
+  <article class="source-card">
+    <div class="source-head">
+      <div>
+        <div class="source-title">{{ source.name }}</div>
+        <div class="source-meta">{{ source.source_type|title }} · {{ source.assigned_name or 'Unassigned' }}</div>
+      </div>
+      <span class="badge {% if source.enabled %}badge-success{% else %}badge-draft{% endif %}">{% if source.enabled %}Active{% else %}Off{% endif %}</span>
+    </div>
+
+    <div class="endpoint-box">
+      <code id="endpoint-{{ source.id }}">{{ source.endpoint_url }}</code>
+      <button type="button" class="btn btn-sm btn-outline copy-btn" data-copy-target="endpoint-{{ source.id }}">Copy</button>
+    </div>
+
+    <div class="source-stats">
+      <div class="source-stat"><span>Created</span><strong>{{ source.created_count or 0 }}</strong></div>
+      <div class="source-stat"><span>Events</span><strong>{{ source.event_count or 0 }}</strong></div>
+      <div class="source-stat"><span>Last</span><strong>{{ source.last_event_at or '-' }}</strong></div>
+    </div>
+
+    {% if source.source_type == 'website' %}
+    <details>
+      <summary>Website form example</summary>
+      <pre class="intake-code">&lt;form method="POST" action="{{ source.endpoint_url }}"&gt;
+  &lt;input name="company_name" placeholder="Company" required&gt;
+  &lt;input name="contact_person" placeholder="Name"&gt;
+  &lt;input name="phone" placeholder="Phone"&gt;
+  &lt;input name="email" placeholder="Email"&gt;
+  &lt;textarea name="requirement" placeholder="Requirement"&gt;&lt;/textarea&gt;
+  &lt;input name="_lead_hp" style="display:none" tabindex="-1"&gt;
+  &lt;button type="submit"&gt;Submit&lt;/button&gt;
+&lt;/form&gt;</pre>
+    </details>
+    {% elif source.source_type == 'telegram' %}
+    <details>
+      <summary>Telegram sales group commands</summary>
+      <pre class="intake-code">/lead
+Company: Acme Industries
+Name: Ravi
+Phone: +91...
+Email: ravi@example.com
+Requirement: Website redesign
+Followup date: 2026-05-05
+Followup time: 10:00
+
+/leadedit 12
+Stage: discussion
+Phone: +91...
+Requirement: Updated requirement
+
+/leadstage 12 confirmation
+/followup 12 2026-05-05 10:00 Call decision maker
+/leadinfo 12
+/leads due
+
+/salesgroup</pre>
+      <form method="POST" action="/settings/lead-intake/sources/{{ source.id }}/telegram-webhook" style="margin-top: 10px;">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-primary btn-sm">Connect Telegram webhook</button>
+      </form>
+    </details>
+    {% elif source.source_type == 'whatsapp' %}
+    <details>
+      <summary>WhatsApp Cloud API setup</summary>
+      <div style="padding: 12px;">
+        <div class="form-group">
+          <label>Callback URL</label>
+          <input type="text" value="{{ source.endpoint_url }}" readonly>
+        </div>
+        <div class="form-group">
+          <label>Verify Token</label>
+          <input type="text" value="{{ source.token }}" readonly>
+        </div>
+        <pre class="intake-code">Lead
+Company: Acme Industries
+Name: Ravi
+Phone: +91...
+Requirement: Website redesign</pre>
+      </div>
+    </details>
+    {% endif %}
+
+    <form method="POST" action="/settings/lead-intake/sources/{{ source.id }}/update" class="source-edit">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-row">
+        <div class="form-group grow">
+          <label>Name</label>
+          <input type="text" name="name" value="{{ source.name }}" required>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select name="source_type">
+            <option value="website" {% if source.source_type == 'website' %}selected{% endif %}>Website</option>
+            <option value="telegram" {% if source.source_type == 'telegram' %}selected{% endif %}>Telegram</option>
+            <option value="whatsapp" {% if source.source_type == 'whatsapp' %}selected{% endif %}>WhatsApp</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select name="enabled">
+            <option value="1" {% if source.enabled %}selected{% endif %}>Active</option>
+            <option value="0" {% if not source.enabled %}selected{% endif %}>Off</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Default Stage</label>
+          <select name="default_stage">
+            {% for stage, label in stages %}
+            {% if stage != 'converted' %}
+            <option value="{{ stage }}" {% if source.default_stage == stage %}selected{% endif %}>{{ label }}</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Owner</label>
+          <select name="assigned_to">
+            <option value="0">Unassigned</option>
+            {% for person in sales_people %}
+            <option value="{{ person.id }}" {% if source.assigned_to == person.id %}selected{% endif %}>{{ person.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group grow">
+          <label>Allowed Origins</label>
+          <input type="text" name="allowed_origins" value="{{ source.allowed_origins or '*' }}" placeholder="* or https://example.com">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Success Message</label>
+        <input type="text" name="success_message" value="{{ source.success_message or '' }}">
+      </div>
+      <div class="source-actions">
+        <button type="submit" class="btn btn-primary btn-sm">Save source</button>
+      </div>
+    </form>
+    <div class="source-actions">
+      <form method="POST" action="/settings/lead-intake/sources/{{ source.id }}/rotate" onsubmit="return confirm('Rotate this token? Existing forms or webhooks using the old URL will stop working.');">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-outline btn-sm">Rotate token</button>
+      </form>
+      <form method="POST" action="/settings/lead-intake/sources/{{ source.id }}/delete" onsubmit="return confirm('Delete this lead intake source? Existing leads are not deleted.');">
+        <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+<section class="intake-add-card">
+  <div class="card-head">
+    <div>
+      <h2>Add intake source</h2>
+      <p class="page-sub">Use separate sources for websites, landing pages, campaigns, or chat channels.</p>
+    </div>
+  </div>
+  <form method="POST" action="/settings/lead-intake/sources">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>Name</label>
+        <input type="text" name="name" placeholder="Your Company contact form" required>
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select name="source_type">
+          <option value="website">Website</option>
+          <option value="telegram">Telegram</option>
+          <option value="whatsapp">WhatsApp</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Default Stage</label>
+        <select name="default_stage">
+          {% for stage, label in stages %}
+          {% if stage != 'converted' %}
+          <option value="{{ stage }}">{{ label }}</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Owner</label>
+        <select name="assigned_to">
+          <option value="0">Unassigned</option>
+          {% for person in sales_people %}
+          <option value="{{ person.id }}">{{ person.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group grow">
+        <label>Allowed Origins</label>
+        <input type="text" name="allowed_origins" value="*" placeholder="* or https://example.com">
+      </div>
+      <div class="form-group grow">
+        <label>Success Message</label>
+        <input type="text" name="success_message" value="Thanks, we received your enquiry.">
+      </div>
+      <button type="submit" class="btn btn-primary">Create source</button>
+    </div>
+  </form>
+</section>
+
+<script>
+document.querySelectorAll('[data-copy-target]').forEach(function(button) {
+  button.addEventListener('click', function() {
+    var target = document.getElementById(button.dataset.copyTarget);
+    if (!target) return;
+    navigator.clipboard.writeText(target.textContent.trim()).then(function() {
+      button.classList.add('copied');
+      button.textContent = 'Copied';
+      setTimeout(function() {
+        button.classList.remove('copied');
+        button.textContent = 'Copy';
+      }, 1600);
+    });
+  });
+});
+</script>
+{% endblock %}

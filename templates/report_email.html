@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Helvetica, Arial, sans-serif; color: #222; margin: 0; padding: 0; background: #f5f5f5;">
+<div style="max-width: 680px; margin: 0 auto; background: #fff; padding: 24px;">
+
+{% if include_branding and company %}
+<div style="border-bottom: 2px solid #3b6bd4; padding-bottom: 14px; margin-bottom: 18px;">
+  {% if company.logo_url %}<img src="{{ company.logo_url }}" style="max-height: 50px; max-width: 200px;"><br>{% endif %}
+  <strong style="font-size: 16px;">{{ company.name }}</strong><br>
+  <span style="color: #666; font-size: 12px;">
+    {% if company.email %}{{ company.email }}{% endif %}
+    {% if company.phone %} &middot; {{ company.phone }}{% endif %}
+  </span>
+</div>
+{% endif %}
+
+<h2 style="margin: 0 0 4px 0; color: #333;">{{ report.project.name }}</h2>
+<div style="color: #666; font-size: 13px; margin-bottom: 16px;">
+  {% if report.project.client_name %}Client: {{ report.project.client_name }} &middot; {% endif %}
+  {{ report.date_from }} to {{ report.date_to }}
+</div>
+
+{% if summary %}
+<div style="background: #f9fafb; border-left: 3px solid #3b6bd4; padding: 12px 14px; margin: 14px 0; font-size: 14px; line-height: 1.5;">
+  {{ summary|replace('\n', '<br>'|safe)|safe }}
+</div>
+{% endif %}
+
+<table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+  <tr>
+    <td style="border: 1px solid #e5e7eb; padding: 12px; width: 33%;">
+      <div style="font-size: 10px; color: #666; text-transform: uppercase;">Total Hours</div>
+      <div style="font-size: 22px; font-weight: bold;">{{ '%.2f'|format(report.total_hours) }}</div>
+    </td>
+    <td style="border: 1px solid #e5e7eb; padding: 12px; width: 33%;">
+      <div style="font-size: 10px; color: #666; text-transform: uppercase;">Completions</div>
+      <div style="font-size: 22px; font-weight: bold;">{{ report.task_count }}</div>
+    </td>
+    <td style="border: 1px solid #e5e7eb; padding: 12px; width: 33%;">
+      <div style="font-size: 10px; color: #666; text-transform: uppercase;">Contributors</div>
+      <div style="font-size: 22px; font-weight: bold;">{{ report.contributors }}</div>
+    </td>
+  </tr>
+</table>
+
+<h3 style="font-size: 14px; margin: 20px 0 8px 0;">Hours per Contributor</h3>
+<table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+  <thead>
+    <tr style="background: #f3f4f6;">
+      <th style="border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left;">Employee</th>
+      <th style="border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right;">Hours</th>
+      <th style="border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right;">Cost</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in report.employees %}
+    <tr>
+      <td style="border: 1px solid #e5e7eb; padding: 6px 8px;">{{ e.name }}</td>
+      <td style="border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right;">{{ '%.2f'|format(e.minutes/60) }}</td>
+      <td style="border: 1px solid #e5e7eb; padding: 6px 8px; text-align: right;">{{ report.currency_sym }}{{ '%.2f'|format(e.cost) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<p style="color: #666; font-size: 12px; margin-top: 20px;">
+  A detailed PDF report is attached with the complete work log and breakdown.
+</p>
+
+{% if include_branding and company %}
+<div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e5e7eb; color: #999; font-size: 11px; text-align: center;">
+  Sent by {{ company.name }}
+</div>
+{% endif %}
+
+</div>
+</body>
+</html>

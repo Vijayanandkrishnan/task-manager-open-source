@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Attendance Report - {{ app_name }}{% endblock %}
+{% block content %}
+<style>
+  .att-action-btn { font-size: 11px; padding: 2px 6px; border-radius: 4px; cursor: pointer; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+  .att-action-btn:hover { background: var(--border); }
+  .att-action-btn.danger { color: var(--danger); border-color: var(--danger); }
+  .att-action-btn.danger:hover { background: var(--danger); color: #fff; }
+  .att-edit-input { width: 80px; font-size: 12px; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; }
+  .att-pair { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 8px; border-radius: 4px; background: var(--surface-2); margin-right: 4px; margin-bottom: 2px; }
+</style>
+
+<div class="flex-between" style="margin-bottom: 20px;">
+  <h1>Attendance Report</h1>
+  <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+    <form method="GET" action="/admin/attendance" class="form-row" style="gap: 8px;" id="attendanceForm">
+      <select name="employee" onchange="this.form.submit()" style="width: auto;">
+        <option value="0">All Users</option>
+        {% for emp in employees %}
+        <option value="{{ emp.id }}" {% if emp_filter == emp.id %}selected{% endif %}>{{ emp.name }}</option>
+        {% endfor %}
+      </select>
+      <label style="font-size: 13px; color: var(--text-light); margin: 0;">From</label>
+      <input type="date" name="from" value="{{ from_date }}" onchange="this.form.submit()" style="width: auto; font-size: 13px;">
+      <label style="font-size: 13px; color: var(--text-light); margin: 0;">To</label>
+      <input type="date" name="to" value="{{ to_date }}" onchange="this.form.submit()" style="width: auto; font-size: 13px;">
+    </form>
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('addAttendanceModal').classList.add('active')">+ Add Record</button>
+    <a href="/admin/attendance/export?from={{ from_date }}&to={{ to_date }}&employee={{ emp_filter }}" class="btn btn-sm btn-outline">Export Excel</a>
+    <button class="btn btn-sm btn-outline" onclick="document.getElementById('attendanceImportModal').classList.add('active')">Import</button>
+    <a href="/admin/attendance-template" class="btn btn-sm btn-outline">Template</a>
+  </div>
+</div>
+
+<div class="card">
+  <div style="text-align: center;">
+    <h2 style="margin: 0;">{{ from_date }} to {{ to_date }}</h2>
+  </div>
+</div>
+
+{% for emp_id, data in report.items() %}
+<div class="card">
+  <div class="flex-between" style="margin-bottom: 12px;">
+    <h2>{{ data.name }}</h2>
+    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+      <div class="stat-card" style="padding: 10px 16px; margin: 0;">
+        <div class="stat-value" style="font-size: 20px;">{{ data.days_present }}</div>
+        <div class="stat-label">Days Present</div>
+      </div>
+      <div class="stat-card" style="padding: 10px 16px; margin: 0;">
+        <div class="stat-value" style="font-size: 20px; color: var(--danger);">{{ data.days_absent }}</div>
+        <div class="stat-label">Days Absent</div>
+      </div>
+      <div class="stat-card" style="padding: 10px 16px; margin: 0;">
+        <div class="stat-value" style="font-size: 20px; color: var(--accent);">{{ data.days_leave }}</div>
+        <div class="stat-label">Days on Leave</div>
+      </div>
+      <div class="stat-card" style="padding: 10px 16px; margin: 0;">
+        <div class="stat-value" style="font-size: 20px;">{{ data.total_hours }}</div>
+        <div class="stat-label">Total Hours</div>
+      </div>
+      <div class="stat-card" style="padding: 10px 16px; margin: 0;">
+        <div class="stat-value" style="font-size: 20px;">{% if data.days_present %}{{ (data.total_hours / data.days_present)|round(1) }}{% else %}0{% endif %}</div>
+        <div class="stat-label">Avg Hrs/Day</div>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Check-ins / Check-outs</th>
+        <th>Total Hours</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for day_str in date_list %}
+        {% set day_data = data.days.get(day_str, {'records': [], 'total_minutes': 0, 'present': false, 'leave': none, 'off_day': false}) %}
+        <tr {% if day_data.present %}style="background: var(--sage-soft);"{% elif day_data.leave %}style="background: var(--accent-soft);"{% elif day_data.off_day %}style="background: var(--surface-2);"{% elif day_str < today_str and day_str >= from_date %}style="background: var(--rose-soft);"{% endif %}>
+          <td style="font-weight: 600; white-space: nowrap;">{{ day_str }}</td>
+          <td>
+            {% if day_data.present %}
+              <span class="badge badge-done">Present</span>
+              {% if day_data.leave %}<span class="badge badge-recurring">{{ day_data.leave_type }}</span>{% endif %}
+            {% elif day_data.leave %}
+              <span class="badge badge-recurring">Leave</span>
+              <span style="color: var(--text-light); font-size: 12px;">{{ day_data.leave_type }}</span>
+            {% elif day_data.off_day %}
+              <span class="badge badge-on-hold">Off</span>
+              <span style="color: var(--text-light); font-size: 12px;">{{ day_data.off_reason }}</span>
+            {% elif day_str < today_str %}
+              <span class="badge badge-deleted">Absent</span>
+            {% elif day_str == today_str %}
+              <span style="color: var(--text-light); font-size: 13px;">In Progress</span>
+            {% else %}
+              <span style="color: var(--text-light); font-size: 13px;">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if day_data.records %}
+              <div style="display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
+                {% for pair in day_data.records %}
+                  <div class="att-pair">
+                    <!-- Check-in time (editable) -->
+                    <form method="POST" action="/admin/attendance/edit/{{ pair.in_id }}" style="display:inline-flex; align-items:center; gap:2px; margin:0;">
+                      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                      <input type="time" name="action_time" value="{{ pair['in'][:5] }}" class="att-edit-input" title="Edit check-in time">
+                      <button type="submit" class="att-action-btn" title="Save check-in time">&#10003;</button>
+                    </form>
+                    <span>&rarr;</span>
+                    <!-- Check-out time (editable if exists) -->
+                    {% if pair.out_id %}
+                    <form method="POST" action="/admin/attendance/edit/{{ pair.out_id }}" style="display:inline-flex; align-items:center; gap:2px; margin:0;">
+                      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                      <input type="time" name="action_time" value="{{ pair.out[:5] }}" class="att-edit-input" title="Edit check-out time">
+                      <button type="submit" class="att-action-btn" title="Save check-out time">&#10003;</button>
+                    </form>
+                    {% else %}
+                      <span style="color: var(--text-light);">&mdash;</span>
+                    {% endif %}
+                    {% if pair.minutes %}<span style="color: var(--text-light);">({{ pair.minutes }}m)</span>{% endif %}
+                    <!-- Delete check-in -->
+                    <form method="POST" action="/admin/attendance/delete/{{ pair.in_id }}" style="display:inline; margin:0;"
+                          onsubmit="return confirm('Delete this check-in record?');">
+                      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                      <button type="submit" class="att-action-btn danger" title="Delete check-in">&times;</button>
+                    </form>
+                    {% if pair.out_id %}
+                    <form method="POST" action="/admin/attendance/delete/{{ pair.out_id }}" style="display:inline; margin:0;"
+                          onsubmit="return confirm('Delete this check-out record?');">
+                      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+                      <button type="submit" class="att-action-btn danger" title="Delete check-out">&times;</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <span style="color: var(--text-light);">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if day_data.total_minutes > 0 %}
+              <strong>{{ (day_data.total_minutes / 60)|round(1) }} hrs</strong>
+              <span style="color: var(--text-light); font-size: 12px;">({{ day_data.total_minutes }} min)</span>
+            {% else %}
+              <span style="color: var(--text-light);">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>
+            <!-- Quick add check-in/out for this employee+day -->
+            <button class="att-action-btn" onclick="openQuickAdd({{ emp_id }}, '{{ day_str }}')" title="Add check-in/out for this day">+</button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+{% if not report %}
+<div class="card" style="text-align: center; color: var(--text-light); padding: 40px;">
+  No attendance data for this period.
+</div>
+{% endif %}
+
+<!-- Add Attendance Modal -->
+<div class="modal-overlay" id="addAttendanceModal">
+  <div class="modal">
+    <h3>Add Attendance Record</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Manually add a check-in or check-out entry for any user.
+    </p>
+    <form method="POST" action="/admin/attendance/add">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>User</label>
+        <select name="employee_id" id="addAttEmp" required>
+          <option value="">Select user...</option>
+          {% for emp in employees %}
+          <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.username }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row" style="margin-bottom: 12px;">
+        <div class="form-group grow">
+          <label>Action</label>
+          <select name="action" required>
+            <option value="checkin">Check In</option>
+            <option value="checkout">Check Out</option>
+          </select>
+        </div>
+        <div class="form-group grow">
+          <label>Date</label>
+          <input type="date" name="action_date" id="addAttDate" required value="{{ today_str }}">
+        </div>
+        <div class="form-group grow">
+          <label>Time</label>
+          <input type="time" name="action_time" required value="09:00">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('addAttendanceModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add Record</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Quick Add Modal (pre-filled with employee + date) -->
+<div class="modal-overlay" id="quickAddModal">
+  <div class="modal">
+    <h3>Add Attendance</h3>
+    <form method="POST" action="/admin/attendance/add">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <input type="hidden" name="employee_id" id="quickAddEmpId">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Date</label>
+        <input type="date" name="action_date" id="quickAddDate" required>
+      </div>
+      <div class="form-row" style="margin-bottom: 12px;">
+        <div class="form-group grow">
+          <label>Action</label>
+          <select name="action" required>
+            <option value="checkin">Check In</option>
+            <option value="checkout">Check Out</option>
+          </select>
+        </div>
+        <div class="form-group grow">
+          <label>Time</label>
+          <input type="time" name="action_time" required value="09:00">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('quickAddModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Attendance Import Modal -->
+<div class="modal-overlay" id="attendanceImportModal">
+  <div class="modal">
+    <h3>Import Attendance from Excel</h3>
+    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 12px;">
+      Columns: <b>employee_username, action, date, time</b>.<br>
+      Action: checkin or checkout. Date: YYYY-MM-DD. Time: HH:MM:SS.
+    </p>
+    <form method="POST" action="/admin/import-attendance" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <input type="file" name="excel_file" accept=".xlsx,.xls" required style="padding: 8px;">
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" onclick="closeModal('attendanceImportModal')">Cancel</button>
+        <button type="submit" class="btn btn-success">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openQuickAdd(empId, dateStr) {
+  document.getElementById('quickAddEmpId').value = empId;
+  document.getElementById('quickAddDate').value = dateStr;
+  document.getElementById('quickAddModal').classList.add('active');
+}
+</script>
+{% endblock %}

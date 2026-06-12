@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Review Setup - {{ app_name }}{% endblock %}
+{% block content %}
+<div class="flex-between" style="margin-bottom: 20px;">
+  <div>
+    <a href="/reviews" style="color: var(--text-light); text-decoration: none; font-size: 13px;">&larr; Back to Reviews</a>
+    <h1 style="margin-top: 4px;">Review Setup</h1>
+    <p style="font-size: 13px; color: var(--text-light);">Configure review frequency and participants for each active project.</p>
+  </div>
+</div>
+
+{% for project in projects %}
+{% set cfg = configs.get(project.id) %}
+<div class="card" style="margin-bottom: 16px;">
+  <form method="POST" action="/reviews/setup/save">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <input type="hidden" name="project_id" value="{{ project.id }}">
+
+    <div class="flex-between" style="margin-bottom: 12px;">
+      <div>
+        <h2 style="margin: 0;">{{ project.name }}</h2>
+        <span style="font-size: 12px; color: var(--text-light);">{{ project.client_name or 'No client' }}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+          <input type="checkbox" name="active" value="1" {% if cfg and cfg.active %}checked{% elif not cfg %}checked{% endif %}>
+          Active
+        </label>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-bottom: 12px;">
+      <div class="form-group grow">
+        <label>Frequency</label>
+        <select name="frequency">
+          <option value="weekly" {% if cfg and cfg.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+          <option value="biweekly" {% if cfg and cfg.frequency == 'biweekly' %}selected{% endif %}>Bi-Weekly</option>
+          <option value="monthly" {% if cfg and cfg.frequency == 'monthly' or not cfg %}selected{% endif %}>Monthly</option>
+          <option value="quarterly" {% if cfg and cfg.frequency == 'quarterly' %}selected{% endif %}>Quarterly</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Participants (who should attend this review)</label>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+        {% set selected_ids = (cfg.participants if cfg and cfg.participants else '')|string %}
+        {% for emp in employees %}
+        <label style="display: flex; align-items: center; gap: 4px; font-size: 13px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+               {% if emp.id|string in selected_ids.split(',') %}background: var(--accent-soft); border-color: var(--primary);{% endif %}">
+          <input type="checkbox" name="participants" value="{{ emp.id }}"
+                 {% if emp.id|string in selected_ids.split(',') %}checked{% endif %}
+                 style="accent-color: var(--primary);">
+          {{ emp.name }}
+          <span style="font-size: 11px; color: var(--text-light);">({{ emp.role }})</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if cfg %}
+    <div style="font-size: 12px; color: var(--text-light); margin-top: 8px;">
+      Config ID: #{{ cfg.id }} &middot; Created: {{ cfg.created_at }}
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endfor %}
+
+{% if not projects %}
+<div class="card" style="text-align: center; color: var(--text-light); padding: 40px;">
+  No active projects found. <a href="/projects">Add a project</a> first.
+</div>
+{% endif %}
+{% endblock %}
