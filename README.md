@@ -18,6 +18,10 @@ This repository is a clean source-only release. It does not include production d
 - Telegram notifications for HR reports, sales lead reminders, celebrations, and attendance events.
 - JSON APIs for leads, intake sources, employees, clients, projects, tasks, invoices, attendance, leave, settings, comments, and notifications.
 
+## Documentation
+
+- [Complete Feature Guide](docs/FEATURE_GUIDE.md)
+
 ## Quick Start
 
 ```bash
