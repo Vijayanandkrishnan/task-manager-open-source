@@ -1,5 +1,7 @@
 # Agency Task Manager
 
+![Agency Task Manager open-source launch graphic](assets/agency-task-manager-linkedin-landscape.png)
+
 Open-source Flask task manager for small agencies and service teams. It combines daily work tracking, attendance, leave approvals, client/project management, invoices, sales leads, follow-ups, role permissions, reports, and optional Telegram reminders in one SQLite-backed app.
 
 This repository is a clean source-only release. It does not include production databases, logs, secrets, backups, handoff notes, or deployment credentials.
