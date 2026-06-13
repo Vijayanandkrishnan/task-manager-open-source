@@ -430,11 +430,14 @@ Employees can be assigned to a shift. Late check-in reminders use the employee s
 Admins can manage:
 
 - Holiday list
+- Monthly holiday planner
 - Weekly off days
 - Holiday import template
 - Holiday import from Excel
 
 Attendance and leave calculations respect holidays and weekly off days.
+
+The monthly holiday planner lets an admin select a month and mark specific dates, such as a local holiday or a second/third Saturday, before monthly attendance summaries are generated. By default it only adds newly selected dates and skips duplicates. Admins can optionally replace the selected month's specific holidays when they want the month to exactly match the checked calendar.
 
 ### Late check-in reminder
 
@@ -1764,7 +1767,7 @@ The command should print nothing for a clean source release.
 3. Set app name, company branding, timezone, and public base URL.
 4. Create roles and adjust permissions.
 5. Add employees and assign shifts.
-6. Configure holidays and weekly off days.
+6. Configure weekly off days and set monthly holidays before reports run.
 7. Add clients and projects.
 8. Add recurring tasks for routine client work.
 9. Use one-time tasks for ad hoc requests.

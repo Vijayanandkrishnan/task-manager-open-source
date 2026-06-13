@@ -9,7 +9,7 @@ This repository is a clean source-only release. It does not include production d
 ## Features
 
 - Employee task dashboards with recurring and one-off tasks.
-- Attendance check-in/check-out, shift reminders, and daily activity summaries.
+- Attendance check-in/check-out, shift reminders, monthly holidays, and daily activity summaries.
 - Leave application workflow with admin approval permissions.
 - Lead management with stages, follow-ups, public form intake, Telegram intake, and WhatsApp webhook intake.
 - Lead conversion into clients.

@@ -13,7 +13,7 @@
 <div class="card">
   <h2>Weekly Off Days</h2>
   <p style="color: var(--ink-3); font-size: 13px; margin-bottom: 14px;">
-    Pick the days of the week your team is off. Absentee reports won't be sent on these days.
+    Pick the days of the week your team is off. Attendance, leave, and HR reports won't count these as working days.
   </p>
   <form method="POST" action="/admin/holidays/weekly-off">
     <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
@@ -28,6 +28,63 @@
     </div>
     <button type="submit" class="btn btn-primary">Save Off Days</button>
   </form>
+</div>
+
+<!-- Month Planner -->
+<div class="card">
+  <div class="flex-between" style="gap: 14px; margin-bottom: 14px; align-items: flex-start;">
+    <div>
+      <h2 style="margin: 0;">Monthly Holiday Planner</h2>
+      <p style="color: var(--ink-3); font-size: 13px; margin-top: 6px; margin-bottom: 0;">
+        Mark extra holidays for a specific month before month-end attendance and staff reports are generated.
+      </p>
+    </div>
+    <form method="GET" action="/admin/holidays" style="display: flex; gap: 8px; align-items: center;">
+      <input type="month" name="month" value="{{ selected_month }}" style="min-width: 150px;">
+      <button type="submit" class="btn btn-sm btn-outline">View</button>
+    </form>
+  </div>
+
+  <form method="POST" action="/admin/holidays/monthly">
+    <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+    <input type="hidden" name="year_month" value="{{ selected_month }}">
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin-bottom: 16px;">
+      {% for day in month_days %}
+      <label style="display: flex; gap: 8px; align-items: flex-start; min-height: 76px; padding: 10px; border: 1px solid {% if day.holiday_name %}var(--accent){% elif day.is_weekly_off %}var(--line){% else %}var(--line){% endif %}; border-radius: 8px; background: {% if day.holiday_name %}var(--accent-soft){% elif day.is_weekly_off %}var(--surface-2){% else %}var(--surface){% endif %}; cursor: pointer;">
+        <input type="checkbox" name="holiday_dates" value="{{ day.date }}" {% if day.holiday_name %}checked{% endif %} style="margin-top: 3px; width: 16px; height: 16px; accent-color: var(--accent);">
+        <span style="display: block; min-width: 0;">
+          <span style="display: block; font-weight: 700; color: var(--ink);">{{ day.day }} {{ day.weekday }}</span>
+          {% if day.holiday_name %}
+          <span style="display: block; margin-top: 4px; color: var(--accent-ink); font-size: 12px; line-height: 1.25;">{{ day.holiday_name }}</span>
+          {% elif day.is_weekly_off %}
+          <span style="display: block; margin-top: 4px; color: var(--ink-3); font-size: 12px; line-height: 1.25;">Weekly off</span>
+          {% else %}
+          <span style="display: block; margin-top: 4px; color: var(--ink-3); font-size: 12px; line-height: 1.25;">Working day</span>
+          {% endif %}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="form-row" style="align-items: flex-end;">
+      <div class="form-group grow" style="margin-bottom: 0;">
+        <label>Name for newly added dates</label>
+        <input type="text" name="name" value="Monthly Holiday" placeholder="e.g. Second Saturday, Local Holiday">
+      </div>
+      <label style="display: inline-flex; align-items: center; gap: 8px; min-height: 42px; color: var(--ink-2); font-size: 13px;">
+        <input type="checkbox" name="replace_existing" value="1" style="width: 16px; height: 16px; accent-color: var(--accent);">
+        Replace this month's specific holidays
+      </label>
+      <button type="submit" class="btn btn-primary">Save Month</button>
+    </div>
+  </form>
+
+  {% if month_holidays %}
+  <div style="margin-top: 16px; color: var(--ink-3); font-size: 13px;">
+    {{ month_holidays|length }} specific holiday{{ '' if month_holidays|length == 1 else 's' }} set for {{ selected_month }}.
+  </div>
+  {% endif %}
 </div>
 
 <!-- Holidays List -->
@@ -71,18 +128,13 @@
       <tr>
         <td style="font-weight: 500;">{{ h.holiday_date }}</td>
         <td style="color: var(--ink-3);">
-          {% set day_names = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
-          {% set parts = h.holiday_date.split('-') %}
-          {% if parts|length == 3 %}
-            {% set y, m, d = parts[0]|int, parts[1]|int, parts[2]|int %}
-            {# Calculate weekday (0=Mon..6=Sun) using Zeller's-style trick: rely on simple display #}
-            <span style="font-size: 13px;">—</span>
-          {% endif %}
+          <span style="font-size: 13px;">{{ h.weekday or '—' }}</span>
         </td>
         <td>{{ h.name }}</td>
         <td>
           <form method="POST" action="/admin/holidays/{{ h.id }}/delete" class="inline-form" onsubmit="return confirm('Remove holiday {{ h.name }}?');">
             <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+            <input type="hidden" name="month" value="{{ selected_month }}">
             <button type="submit" class="btn btn-sm btn-danger">&times;</button>
           </form>
         </td>

@@ -7,6 +7,7 @@ import time as _time
 import json
 import io
 import base64
+import calendar
 import bcrypt
 from datetime import datetime, date, timedelta
 from functools import wraps
@@ -14,7 +15,7 @@ from statistics import median
 from zoneinfo import ZoneInfo
 from flask import Flask, render_template, request, redirect, url_for, session, flash, g, send_file, make_response, jsonify
 
-APP_VERSION = "4.7.20"
+APP_VERSION = "4.7.21"
 
 app = Flask(__name__)
 
@@ -1235,6 +1236,29 @@ def date_range_strings(start_day, end_day):
     while current <= end_day:
         yield current.isoformat()
         current += timedelta(days=1)
+
+
+def parse_year_month(value):
+    try:
+        return datetime.strptime((value or "").strip(), "%Y-%m").date().replace(day=1)
+    except (TypeError, ValueError):
+        return None
+
+
+def month_end_for(month_start):
+    return month_start.replace(day=calendar.monthrange(month_start.year, month_start.month)[1])
+
+
+def holiday_display_row(row):
+    holiday_day = parse_iso_date(row["holiday_date"])
+    weekday = holiday_day.strftime("%A") if holiday_day else ""
+    return {
+        "id": row["id"],
+        "holiday_date": row["holiday_date"],
+        "name": row["name"],
+        "created_at": row["created_at"] if "created_at" in row.keys() else "",
+        "weekday": weekday,
+    }
 
 
 def weekly_off_day_indexes():
@@ -9107,13 +9131,48 @@ def admin_delete_shift(shift_id):
 @require_perm("manage_holidays")
 def admin_holidays():
     db = get_db()
-    holidays = db.execute("SELECT * FROM holidays ORDER BY holiday_date").fetchall()
+    today = get_tz_now().date()
+    selected_month = request.args.get("month", today.strftime("%Y-%m")).strip()
+    month_start = parse_year_month(selected_month) or today.replace(day=1)
+    month_end = month_end_for(month_start)
+    selected_month = month_start.strftime("%Y-%m")
+
+    holiday_rows = db.execute("SELECT * FROM holidays ORDER BY holiday_date").fetchall()
+    holidays = [holiday_display_row(row) for row in holiday_rows]
+    month_holiday_rows = db.execute(
+        "SELECT * FROM holidays WHERE holiday_date LIKE ? ORDER BY holiday_date",
+        (f"{selected_month}-%",),
+    ).fetchall()
+    month_holidays = [holiday_display_row(row) for row in month_holiday_rows]
+    month_holiday_by_date = {row["holiday_date"]: row for row in month_holidays}
     weekly_off = get_app_setting("weekly_off_days", "6")
     try:
         off_days = [int(x.strip()) for x in weekly_off.split(",") if x.strip()]
     except ValueError:
         off_days = [6]
-    return render_template("admin_holidays.html", holidays=holidays, off_days=off_days)
+    off_day_set = set(off_days)
+    day_names_short = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    month_days = []
+    current = month_start
+    while current <= month_end:
+        day_str = current.isoformat()
+        holiday = month_holiday_by_date.get(day_str)
+        month_days.append({
+            "date": day_str,
+            "day": current.day,
+            "weekday": day_names_short[current.weekday()],
+            "is_weekly_off": current.weekday() in off_day_set,
+            "holiday_name": holiday["name"] if holiday else "",
+        })
+        current += timedelta(days=1)
+    return render_template(
+        "admin_holidays.html",
+        holidays=holidays,
+        month_holidays=month_holidays,
+        month_days=month_days,
+        selected_month=selected_month,
+        off_days=off_days,
+    )
 
 
 @app.route("/admin/holidays/add", methods=["POST"])
@@ -9122,15 +9181,89 @@ def admin_holidays():
 def admin_add_holiday():
     holiday_date = request.form.get("holiday_date", "").strip()
     name = request.form.get("name", "").strip()
-    if holiday_date and name:
-        db = get_db()
-        try:
-            db.execute("INSERT INTO holidays (holiday_date, name) VALUES (?,?)", (holiday_date, name))
-            db.commit()
-            flash(f"Holiday '{name}' on {holiday_date} added.", "success")
-        except sqlite3.IntegrityError:
-            flash(f"A holiday already exists on {holiday_date}.", "error")
-    return redirect(url_for("admin_holidays"))
+    target_month = holiday_date[:7] if parse_iso_date(holiday_date) else None
+    if not parse_iso_date(holiday_date):
+        flash("Please choose a valid holiday date.", "error")
+        return redirect(url_for("admin_holidays"))
+    if not name:
+        flash("Holiday name is required.", "error")
+        return redirect(url_for("admin_holidays", month=target_month))
+
+    db = get_db()
+    try:
+        db.execute("INSERT INTO holidays (holiday_date, name) VALUES (?,?)", (holiday_date, name))
+        db.commit()
+        flash(f"Holiday '{name}' on {holiday_date} added.", "success")
+    except sqlite3.IntegrityError:
+        flash(f"A holiday already exists on {holiday_date}.", "error")
+    return redirect(url_for("admin_holidays", month=target_month))
+
+
+@app.route("/admin/holidays/monthly", methods=["POST"])
+@login_required
+@require_perm("manage_holidays")
+def admin_save_monthly_holidays():
+    selected_month = request.form.get("year_month", "").strip()
+    month_start = parse_year_month(selected_month)
+    if not month_start:
+        flash("Choose a valid month before saving holidays.", "error")
+        return redirect(url_for("admin_holidays"))
+
+    month_key = month_start.strftime("%Y-%m")
+    selected_dates = request.form.getlist("holiday_dates")
+    holiday_name = request.form.get("name", "").strip() or "Monthly Holiday"
+    replace_existing = request.form.get("replace_existing") == "1"
+
+    valid_dates = []
+    invalid_dates = 0
+    for value in selected_dates:
+        holiday_day = parse_iso_date(value)
+        if not holiday_day or holiday_day.year != month_start.year or holiday_day.month != month_start.month:
+            invalid_dates += 1
+            continue
+        valid_dates.append(holiday_day.isoformat())
+    valid_dates = sorted(set(valid_dates))
+
+    if not valid_dates and not replace_existing:
+        flash("Choose at least one date to add for this month.", "error")
+        return redirect(url_for("admin_holidays", month=month_key))
+
+    db = get_db()
+    removed = 0
+    if replace_existing:
+        if valid_dates:
+            placeholders = ",".join("?" for _ in valid_dates)
+            params = [f"{month_key}-%", *valid_dates]
+            cursor = db.execute(
+                f"DELETE FROM holidays WHERE holiday_date LIKE ? AND holiday_date NOT IN ({placeholders})",
+                params,
+            )
+        else:
+            cursor = db.execute("DELETE FROM holidays WHERE holiday_date LIKE ?", (f"{month_key}-%",))
+        removed = cursor.rowcount if cursor.rowcount and cursor.rowcount > 0 else 0
+
+    added = 0
+    skipped = 0
+    for day_str in valid_dates:
+        cursor = db.execute(
+            "INSERT OR IGNORE INTO holidays (holiday_date, name) VALUES (?,?)",
+            (day_str, holiday_name),
+        )
+        if cursor.rowcount:
+            added += 1
+        else:
+            skipped += 1
+
+    db.commit()
+    details = [f"{added} added"]
+    if skipped:
+        details.append(f"{skipped} already existed")
+    if removed:
+        details.append(f"{removed} removed")
+    if invalid_dates:
+        details.append(f"{invalid_dates} invalid ignored")
+    flash(f"Monthly holidays for {month_key} saved: {', '.join(details)}.", "success")
+    return redirect(url_for("admin_holidays", month=month_key))
 
 
 @app.route("/admin/holidays/<int:holiday_id>/delete", methods=["POST"])
@@ -9141,6 +9274,9 @@ def admin_delete_holiday(holiday_id):
     db.execute("DELETE FROM holidays WHERE id=?", (holiday_id,))
     db.commit()
     flash("Holiday removed.", "success")
+    target_month = request.form.get("month", "").strip()
+    if parse_year_month(target_month):
+        return redirect(url_for("admin_holidays", month=target_month))
     return redirect(url_for("admin_holidays"))
 
 
